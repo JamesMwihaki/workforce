@@ -2,22 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Force a single light theme. The UI was built for light mode; flipping the
+   page background to near-black via prefers-color-scheme breaks contrast on
+   every component that has explicit light-mode classes. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --background: #f9fafb; /* gray-50 — matches dashboard wrapper */
+  --foreground: #111827; /* gray-900 */
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, 'Segoe UI',
+    Roboto, Helvetica, Arial, sans-serif;
 }
 
 @layer utilities {
