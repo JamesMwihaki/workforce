@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createServiceClient } from '@/lib/supabase/server';
 import { toE164US } from '@/lib/phone';
-import { ROLES } from '@/lib/roles';
+import { ROLES, ROLE_LABELS } from '@/lib/roles';
+import { getTwilioClient, getTwilioFromNumber } from '@/lib/twilio';
 
 // UUID-shape check (8-4-4-4-12 hex). We don't use Zod's strict .uuid() because
 // it enforces RFC 4122 variant bits that Postgres's uuid type doesn't require —
@@ -118,6 +119,32 @@ export async function POST(req: Request) {
       },
       { status: 500 },
     );
+  }
+
+  // Confirmation SMS. Failure here must not roll back the registration —
+  // the worker is in the database and can receive future broadcasts even if
+  // this single send fails (e.g. Twilio outage, landline number).
+  try {
+    const { data: store } = await supabase
+      .from('stores')
+      .select('name')
+      .eq('id', parsed.data.store_id)
+      .single();
+
+    const storeName = store?.name ?? 'your store';
+    const roleLabels = parsed.data.roles.map((r) => ROLE_LABELS[r]).join(', ');
+    const body =
+      `[ShiftAlert] You're signed up at ${storeName} for ${roleLabels}. ` +
+      `We'll text when nearby stores need help. ` +
+      `Reply STOP to unsubscribe.`;
+
+    await getTwilioClient().messages.create({
+      to: phoneE164,
+      from: getTwilioFromNumber(),
+      body,
+    });
+  } catch (e) {
+    console.error('[workers/register] welcome sms failed:', e);
   }
 
   return NextResponse.json({ ok: true });

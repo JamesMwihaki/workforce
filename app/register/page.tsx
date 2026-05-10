@@ -7,7 +7,7 @@ export default async function RegisterPage() {
   const supabase = createClient();
   const { data: stores, error } = await supabase
     .from('stores')
-    .select('id, name')
+    .select('id, name, address')
     .order('name');
 
   if (error) {

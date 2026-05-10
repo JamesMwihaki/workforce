@@ -39,8 +39,8 @@ export default function SmsPolicyPage() {
         <blockquote className="rounded-md border-l-4 border-black bg-gray-50 px-4 py-3 text-sm">
           &ldquo;I agree to receive SMS shift alerts from ShiftAlert at the
           phone number above. Message frequency varies. Message and data rates
-          may apply. Reply STOP to unsubscribe at any time, or HELP for help.
-          See our SMS policy for details.&rdquo;
+          may apply. Reply STOP to unsubscribe at any time. See our SMS
+          policy for details.&rdquo;
         </blockquote>
         <p>
           The Register button is disabled until this box is checked. No
@@ -113,8 +113,7 @@ export default function SmsPolicyPage() {
           </li>
         </ul>
         <p>
-          Replying <strong>START</strong> re-enables alerts. Replying{' '}
-          <strong>HELP</strong> returns instructions and a contact pointer.
+          Replying <strong>START</strong> re-enables alerts.
         </p>
       </section>
 

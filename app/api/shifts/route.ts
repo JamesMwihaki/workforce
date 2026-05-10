@@ -46,8 +46,29 @@ export async function POST(req: Request) {
     );
   }
 
-  if (parsed.data.start_time >= parsed.data.end_time) {
+  // End "00:00" represents a midnight close (e.g. 4 PM – 12 AM). Otherwise
+  // the end must be strictly after the start within the same day.
+  const endsAtMidnight = parsed.data.end_time === '00:00' || parsed.data.end_time === '00:00:00';
+  const sameDayInvalid = !endsAtMidnight && parsed.data.start_time >= parsed.data.end_time;
+  const midnightStartInvalid = endsAtMidnight && (parsed.data.start_time === '00:00' || parsed.data.start_time === '00:00:00');
+  if (sameDayInvalid || midnightStartInvalid) {
     return NextResponse.json({ error: 'End time must be after start time.' }, { status: 400 });
+  }
+
+  // Shift date must fall within the next 14 days (today inclusive).
+  // The dashboard chip picker enforces this client-side; we re-check here so
+  // a crafted request can't book months out.
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const maxDate = new Date(today);
+  maxDate.setUTCDate(today.getUTCDate() + 13);
+  const todayIso = today.toISOString().slice(0, 10);
+  const maxIso = maxDate.toISOString().slice(0, 10);
+  if (parsed.data.shift_date < todayIso || parsed.data.shift_date > maxIso) {
+    return NextResponse.json(
+      { error: 'Shift date must be within the next two weeks.' },
+      { status: 400 },
+    );
   }
 
   // 3. Insert via service role so we keep the workers/shift_claims write surface

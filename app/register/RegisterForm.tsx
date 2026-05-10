@@ -2,13 +2,15 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ROLES, ROLE_LABELS, type Role } from '@/lib/roles';
 
-type Store = { id: string; name: string };
+type Store = { id: string; name: string; address: string | null };
 
 const inputCls =
   'w-full rounded-md border border-gray-400 bg-white px-3 py-2.5 text-base text-gray-900 placeholder:text-gray-400 focus:border-black focus:outline-none focus:ring-2 focus:ring-black/20';
+
+const MAX_RESULTS = 25;
 
 export default function RegisterForm({ stores }: { stores: Store[] }) {
   const router = useRouter();
@@ -16,6 +18,42 @@ export default function RegisterForm({ stores }: { stores: Store[] }) {
   const [error, setError] = useState<string | null>(null);
   const [selectedRoles, setSelectedRoles] = useState<Role[]>([]);
   const [consent, setConsent] = useState(false);
+  const [storeQuery, setStoreQuery] = useState('');
+  const [selectedStore, setSelectedStore] = useState<Store | null>(null);
+  const [storeOpen, setStoreOpen] = useState(false);
+  const storeBoxRef = useRef<HTMLDivElement | null>(null);
+
+  const filteredStores = useMemo(() => {
+    const q = storeQuery.trim().toLowerCase();
+    if (!q) return stores.slice(0, MAX_RESULTS);
+    return stores
+      .filter((s) => {
+        const hay = `${s.name} ${s.address ?? ''}`.toLowerCase();
+        return hay.includes(q);
+      })
+      .slice(0, MAX_RESULTS);
+  }, [storeQuery, stores]);
+
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (!storeBoxRef.current) return;
+      if (!storeBoxRef.current.contains(e.target as Node)) setStoreOpen(false);
+    }
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
+
+  function pickStore(s: Store) {
+    setSelectedStore(s);
+    setStoreQuery('');
+    setStoreOpen(false);
+  }
+
+  function clearStore() {
+    setSelectedStore(null);
+    setStoreQuery('');
+    setStoreOpen(true);
+  }
 
   function toggleRole(role: Role) {
     setSelectedRoles((prev) =>
@@ -37,12 +75,17 @@ export default function RegisterForm({ stores }: { stores: Store[] }) {
       return;
     }
 
+    if (!selectedStore) {
+      setError('Pick your home store.');
+      return;
+    }
+
     const form = new FormData(e.currentTarget);
     const payload = {
       employee_id: String(form.get('employee_id') ?? '').trim(),
       name:        String(form.get('name') ?? '').trim(),
       phone:       String(form.get('phone') ?? '').trim(),
-      store_id:    String(form.get('store_id') ?? ''),
+      store_id:    selectedStore.id,
       roles:       selectedRoles,
     };
 
@@ -95,17 +138,75 @@ export default function RegisterForm({ stores }: { stores: Store[] }) {
         />
       </Field>
 
-      <Field label="Home store">
-        <select name="store_id" required defaultValue="" className={inputCls}>
-          <option value="" disabled>
-            Choose a store…
-          </option>
-          {stores.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
+      <Field label="Home store" hint="Search by city, street, or ZIP">
+        <div ref={storeBoxRef} className="relative">
+          {selectedStore ? (
+            <div className="flex items-start justify-between gap-3 rounded-md border border-black bg-white px-3 py-2.5">
+              <div className="min-w-0">
+                <div className="truncate text-base font-medium text-gray-900">
+                  {selectedStore.name}
+                </div>
+                {selectedStore.address && (
+                  <div className="truncate text-xs text-gray-600">
+                    {selectedStore.address}
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={clearStore}
+                className="shrink-0 text-sm font-medium text-gray-700 underline"
+              >
+                Change
+              </button>
+            </div>
+          ) : (
+            <>
+              <input
+                type="text"
+                value={storeQuery}
+                onChange={(e) => {
+                  setStoreQuery(e.target.value);
+                  setStoreOpen(true);
+                }}
+                onFocus={() => setStoreOpen(true)}
+                autoComplete="off"
+                className={inputCls}
+                placeholder="e.g. Overland Park, 135th, 66223"
+              />
+              {storeOpen && (
+                <div className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-md border border-gray-300 bg-white shadow-lg">
+                  {filteredStores.length === 0 ? (
+                    <div className="px-3 py-3 text-sm text-gray-600">
+                      No stores match &ldquo;{storeQuery}&rdquo;.
+                    </div>
+                  ) : (
+                    <ul>
+                      {filteredStores.map((s) => (
+                        <li key={s.id}>
+                          <button
+                            type="button"
+                            onClick={() => pickStore(s)}
+                            className="block w-full px-3 py-2 text-left hover:bg-gray-100"
+                          >
+                            <div className="text-sm font-medium text-gray-900">
+                              {s.name}
+                            </div>
+                            {s.address && (
+                              <div className="truncate text-xs text-gray-600">
+                                {s.address}
+                              </div>
+                            )}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </Field>
 
       <fieldset className="space-y-2">
@@ -146,8 +247,8 @@ export default function RegisterForm({ stores }: { stores: Store[] }) {
         <span id="consent-detail">
           I agree to receive SMS shift alerts from ShiftAlert at the phone
           number above. Message frequency varies. Message and data rates may
-          apply. Reply <strong>STOP</strong> to unsubscribe at any time, or{' '}
-          <strong>HELP</strong> for help. See our{' '}
+          apply. Reply <strong>STOP</strong> to unsubscribe at any time. See
+          our{' '}
           <Link
             href="/sms-policy"
             target="_blank"

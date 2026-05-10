@@ -31,6 +31,7 @@ yarn-error.log*
 .env.*.local
 .env.development.local
 .env.production.local
+temp.env
 
 # vercel
 .vercel
@@ -56,3 +57,7 @@ supabase/.branches/
 # logs
 *.log
 .env*.local
+
+# data exports / scratch CSVs (not part of the app — used to build seed migrations)
+chipotle_stores.csv
+*.local.csv
