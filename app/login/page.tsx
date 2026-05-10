@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import LoginForm from './LoginForm';
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -14,6 +15,9 @@ export default function LoginPage({
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6 py-12">
+      <Link href="/" className="mb-4 text-sm text-gray-600 hover:underline">
+        ← Back
+      </Link>
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Manager login</h1>
         <p className="mt-1 text-sm text-gray-700">Sign in to manage shift requests.</p>
