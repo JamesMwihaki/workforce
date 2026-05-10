@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireManager } from '@/lib/auth';
-import { ROLE_LABELS, type Role } from '@/lib/roles';
-import { formatDate, formatTime } from '@/lib/format';
+import type { Role } from '@/lib/roles';
+import ShiftList from './ShiftList';
 
 type ShiftRow = {
   id:                  string;
@@ -22,13 +22,22 @@ export default async function DashboardPage() {
   const manager = await requireManager();
   const supabase = createClient();
 
+  // "Active" = open/filled shifts whose date hasn't passed. We compare on
+  // the UTC date for simplicity; for US Central stores this means today's
+  // shifts roll off the dashboard around 7pm local — close enough to "the
+  // day is over" without bringing tz handling into the query path.
+  const todayUtc = new Date().toISOString().slice(0, 10);
+
   const { data: shifts, error } = await supabase
     .from('shift_requests')
     .select(
       'id, role, shift_date, start_time, end_time, headcount_needed, headcount_confirmed, status, created_at',
     )
     .eq('requesting_store_id', manager.store_id)
-    .order('created_at', { ascending: false });
+    .neq('status', 'cancelled')
+    .gte('shift_date', todayUtc)
+    .order('shift_date', { ascending: true })
+    .order('start_time', { ascending: true });
 
   return (
     <div className="space-y-5">
@@ -48,56 +57,21 @@ export default async function DashboardPage() {
         </p>
       )}
 
-      {!error && (!shifts || shifts.length === 0) && (
-        <div className="rounded-lg border border-dashed border-gray-300 bg-white p-8 text-center text-sm text-gray-600">
-          No requests yet. Tap <strong>New request</strong> to send a shift to
-          neighbouring stores.
-        </div>
+      {!error && (
+        <ShiftList
+          shifts={(shifts as ShiftRow[] | null) ?? []}
+          todayIso={todayUtc}
+        />
       )}
 
-      <ul className="space-y-2">
-        {(shifts as ShiftRow[] | null)?.map((s) => (
-          <li key={s.id}>
-            <Link
-              href={`/dashboard/requests/${s.id}`}
-              className="block rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium">
-                    {ROLE_LABELS[s.role]} · {formatDate(s.shift_date)}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {formatTime(s.start_time)} – {formatTime(s.end_time)}
-                  </p>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <StatusBadge status={s.status} />
-                  <span className="text-xs text-gray-600">
-                    {s.headcount_confirmed} / {s.headcount_needed} confirmed
-                  </span>
-                </div>
-              </div>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <div className="pt-2 text-center">
+        <Link
+          href="/dashboard/history"
+          className="text-sm text-gray-600 hover:underline"
+        >
+          View history →
+        </Link>
+      </div>
     </div>
   );
 }
-
-function StatusBadge({ status }: { status: ShiftRow['status'] }) {
-  const styles: Record<ShiftRow['status'], string> = {
-    open:      'bg-blue-50 text-blue-700 ring-blue-200',
-    filled:    'bg-green-50 text-green-700 ring-green-200',
-    cancelled: 'bg-gray-100 text-gray-600 ring-gray-300',
-  };
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${styles[status]}`}
-    >
-      {status}
-    </span>
-  );
-}
-

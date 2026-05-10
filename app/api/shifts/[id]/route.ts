@@ -73,3 +73,41 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   return NextResponse.json({ ok: true });
 }
+
+export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+
+  // RLS-scoped lookup confirms the shift belongs to the caller's store.
+  const { data: shift, error: lookupErr } = await supabase
+    .from('shift_requests')
+    .select('id, status')
+    .eq('id', params.id)
+    .maybeSingle();
+
+  if (lookupErr) return NextResponse.json({ error: lookupErr.message }, { status: 500 });
+  if (!shift)    return NextResponse.json({ error: 'Not found.' }, { status: 404 });
+
+  // Only cancelled shifts are hard-deletable. Completed/filled shifts stay
+  // in history as a record. shift_claims has on-delete-cascade, so claims
+  // tied to this shift go with it.
+  if (shift.status !== 'cancelled') {
+    return NextResponse.json(
+      { error: 'Only cancelled shifts can be deleted. Cancel it first.' },
+      { status: 400 },
+    );
+  }
+
+  const svc = createServiceClient();
+  const { error: delErr } = await svc
+    .from('shift_requests')
+    .delete()
+    .eq('id', params.id);
+
+  if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 });
+
+  return NextResponse.json({ ok: true });
+}
