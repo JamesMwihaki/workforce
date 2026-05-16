@@ -135,8 +135,8 @@ export async function POST(req: Request) {
     const roleLabels = parsed.data.roles.map((r) => ROLE_LABELS[r]).join(', ');
     const body =
       `[ShiftAlert] You're signed up at ${storeName} for ${roleLabels}. ` +
-      `We'll text when nearby stores need help. ` +
-      `Reply STOP to unsubscribe.`;
+      `We'll text when nearby stores need help. Msg&data rates may apply. ` +
+      `Reply HELP for help, STOP to unsubscribe.`;
 
     await getTwilioClient().messages.create({
       to: phoneE164,

@@ -35,12 +35,16 @@ export default function RegisterForm({ stores }: { stores: Store[] }) {
   }, [storeQuery, stores]);
 
   useEffect(() => {
-    function onClick(e: MouseEvent) {
+    function onPointer(e: MouseEvent | TouchEvent) {
       if (!storeBoxRef.current) return;
       if (!storeBoxRef.current.contains(e.target as Node)) setStoreOpen(false);
     }
-    document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
+    document.addEventListener('mousedown', onPointer);
+    document.addEventListener('touchstart', onPointer);
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('touchstart', onPointer);
+    };
   }, []);
 
   function pickStore(s: Store) {
@@ -138,7 +142,11 @@ export default function RegisterForm({ stores }: { stores: Store[] }) {
         />
       </Field>
 
-      <Field label="Home store" hint="Search by city, street, or ZIP">
+      {/* Not wrapped in a <label> — mobile Safari redirects taps inside a
+          label to the first form control (the search input), so dropdown
+          buttons never fire their onClick. */}
+      <div className="space-y-1.5">
+        <span className="block text-sm font-semibold text-gray-900">Home store</span>
         <div ref={storeBoxRef} className="relative">
           {selectedStore ? (
             <div className="flex items-start justify-between gap-3 rounded-md border border-black bg-white px-3 py-2.5">
@@ -207,7 +215,10 @@ export default function RegisterForm({ stores }: { stores: Store[] }) {
             </>
           )}
         </div>
-      </Field>
+        <span className="block text-xs text-gray-600">
+          Search by city, street, or ZIP
+        </span>
+      </div>
 
       <fieldset className="space-y-2">
         <legend className="text-sm font-semibold text-gray-900">Roles you can work</legend>
@@ -247,8 +258,8 @@ export default function RegisterForm({ stores }: { stores: Store[] }) {
         <span id="consent-detail">
           I agree to receive SMS shift alerts from ShiftAlert at the phone
           number above. Message frequency varies. Message and data rates may
-          apply. Reply <strong>STOP</strong> to unsubscribe at any time. See
-          our{' '}
+          apply. Reply <strong>HELP</strong> for help or{' '}
+          <strong>STOP</strong> to unsubscribe at any time. See our{' '}
           <Link
             href="/sms-policy"
             target="_blank"

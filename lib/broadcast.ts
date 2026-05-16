@@ -36,7 +36,7 @@ export async function broadcastShift(input: BroadcastInput): Promise<void> {
   const message =
     `[ShiftAlert] ${input.storeName} needs a ${ROLE_LABELS[input.role]} on ` +
     `${formatDate(input.shiftDate)} from ${formatTime(input.startTime)} to ${formatTime(input.endTime)}. ` +
-    `Reply YES to claim this shift. Reply STOP to unsubscribe. ` +
+    `Reply YES to claim. Reply HELP for help, STOP to unsubscribe. ` +
     `Shift ID: ${input.shiftId}`;
 
   const client = getTwilioClient();

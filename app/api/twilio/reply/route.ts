@@ -68,6 +68,17 @@ export async function POST(req: Request) {
     return twiml("You're opted back in for shift alerts. Reply STOP at any time to unsubscribe.");
   }
 
+  // 5a. HELP: required by Twilio toll-free verification. Same response
+  // whether or not we recognise the worker — keep it short, factual, and
+  // include the STOP keyword.
+  if (/^help\b/i.test(bodyText)) {
+    return twiml(
+      'ShiftAlert: shift-pickup alerts for Chipotle crew. Reply YES to ' +
+        'claim a shift, STOP to unsubscribe. Msg&data rates may apply. ' +
+        'Questions? Contact your manager.',
+    );
+  }
+
   if (!worker) {
     return twiml(
       "We don't recognise this number. Please register at " +
