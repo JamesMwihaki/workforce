@@ -34,21 +34,21 @@ export default function SmsPolicyPage() {
             /register
           </Link>
           . The form collects the user&apos;s employee ID, full name, mobile
-          phone number, home store, and roles. Before submitting, the user
-          must check a consent box that reads:
+          phone number, home store, and roles. Checking the SMS consent box
+          is <strong>optional</strong> — a worker may register without
+          opting in, in which case no SMS will be sent. The consent box on
+          the form reads:
         </p>
         <blockquote className="rounded-md border-l-4 border-black bg-gray-50 px-4 py-3 text-sm">
-          &ldquo;I agree to receive SMS shift alerts from ShiftAlert at the
-          phone number above. Message frequency varies. Message and data rates
-          may apply. Reply HELP for help or STOP to unsubscribe at any time.
-          See our SMS policy for details.&rdquo; The full opt-in form
-          identifies the sender as &ldquo;ShiftAlert, operated by James
-          Karui.&rdquo;
+          &ldquo;I agree to receive SMS shift alerts from ShiftAlert,
+          operated by James Karui, at the phone number above. Message
+          frequency varies. Message and data rates may apply. Reply HELP for
+          help or STOP to unsubscribe at any time. See our SMS policy for
+          details.&rdquo;
         </blockquote>
         <p>
-          The Register button is disabled until this box is checked. No
-          messages are sent to a phone number unless the registration form has
-          been submitted with consent granted.
+          No SMS messages are sent to a phone number unless the user
+          submitted the registration form with the consent box checked.
         </p>
       </section>
 
