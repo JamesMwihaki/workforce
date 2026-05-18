@@ -17,11 +17,12 @@ export default function SmsPolicyPage() {
       <section className="space-y-4">
         <h2 className="text-xl font-semibold">About ShiftAlert</h2>
         <p>
-          ShiftAlert is an internal workforce-sharing tool used by a cluster of
-          Chipotle restaurants to coordinate same-day shift coverage. When a
-          store is short-staffed, a manager posts a shift request and the
-          system sends a one-time SMS to crew members at neighbouring stores
-          who have <strong>opted in</strong> to receive these alerts.
+          ShiftAlert is an internal workforce-sharing tool operated by{' '}
+          <strong>James Karui</strong> and used by a cluster of Chipotle
+          restaurants to coordinate same-day shift coverage. When a store is
+          short-staffed, a manager posts a shift request and the system sends
+          a one-time SMS to crew members at neighbouring stores who have{' '}
+          <strong>opted in</strong> to receive these alerts.
         </p>
       </section>
 
@@ -40,7 +41,9 @@ export default function SmsPolicyPage() {
           &ldquo;I agree to receive SMS shift alerts from ShiftAlert at the
           phone number above. Message frequency varies. Message and data rates
           may apply. Reply HELP for help or STOP to unsubscribe at any time.
-          See our SMS policy for details.&rdquo;
+          See our SMS policy for details.&rdquo; The full opt-in form
+          identifies the sender as &ldquo;ShiftAlert, operated by James
+          Karui.&rdquo;
         </blockquote>
         <p>
           The Register button is disabled until this box is checked. No

@@ -12,11 +12,12 @@ import { getTwilioClient, getTwilioFromNumber } from '@/lib/twilio';
 const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const Body = z.object({
-  employee_id: z.string().trim().min(1).max(64),
-  name:        z.string().trim().min(1).max(120),
-  phone:       z.string().trim().min(7).max(32),
-  store_id:    z.string().regex(UUID_SHAPE, 'Invalid store id'),
-  roles:       z.array(z.enum(ROLES)).min(1),
+  employee_id:  z.string().trim().min(1).max(64),
+  name:         z.string().trim().min(1).max(120),
+  phone:        z.string().trim().min(7).max(32),
+  store_id:     z.string().regex(UUID_SHAPE, 'Invalid store id'),
+  roles:        z.array(z.enum(ROLES)).min(1),
+  sms_opted_in: z.boolean().optional().default(false),
 });
 
 export async function POST(req: Request) {
@@ -91,12 +92,16 @@ export async function POST(req: Request) {
     );
   }
 
+  // SMS consent is optional per Twilio toll-free policy. Workers who didn't
+  // opt in are saved with is_active=false so broadcastShift() skips them and
+  // we don't send a welcome SMS below.
   const { error: insertErr } = await supabase.from('workers').insert({
     employee_id: parsed.data.employee_id,
     name:        parsed.data.name,
     phone:       phoneE164,
     store_id:    parsed.data.store_id,
     roles:       parsed.data.roles,
+    is_active:   parsed.data.sms_opted_in,
   });
 
   if (insertErr) {
@@ -121,9 +126,14 @@ export async function POST(req: Request) {
     );
   }
 
-  // Confirmation SMS. Failure here must not roll back the registration —
-  // the worker is in the database and can receive future broadcasts even if
-  // this single send fails (e.g. Twilio outage, landline number).
+  // Confirmation SMS — only when the worker explicitly opted in. Failure
+  // here must not roll back the registration; the worker is in the database
+  // and can receive future broadcasts even if this single send fails (e.g.
+  // Twilio outage, landline number).
+  if (!parsed.data.sms_opted_in) {
+    return NextResponse.json({ ok: true, sms_opted_in: false });
+  }
+
   try {
     const { data: store } = await supabase
       .from('stores')
@@ -134,9 +144,9 @@ export async function POST(req: Request) {
     const storeName = store?.name ?? 'your store';
     const roleLabels = parsed.data.roles.map((r) => ROLE_LABELS[r]).join(', ');
     const body =
-      `[ShiftAlert] You're signed up at ${storeName} for ${roleLabels}. ` +
-      `We'll text when nearby stores need help. Msg&data rates may apply. ` +
-      `Reply HELP for help, STOP to unsubscribe.`;
+      `ShiftAlert (operated by James Karui): you're signed up at ${storeName} ` +
+      `for ${roleLabels}. We'll text when nearby stores need help. Msg&data ` +
+      `rates may apply. Reply HELP for help, STOP to unsubscribe.`;
 
     await getTwilioClient().messages.create({
       to: phoneE164,

@@ -74,16 +74,14 @@ export default function RegisterForm({ stores }: { stores: Store[] }) {
       return;
     }
 
-    if (!consent) {
-      setError('You must agree to receive SMS shift alerts to register.');
-      return;
-    }
-
     if (!selectedStore) {
       setError('Pick your home store.');
       return;
     }
 
+    // SMS consent is optional (Twilio toll-free policy requires this). Workers
+    // who don't consent are saved with sms_opted_in=false so the broadcast
+    // pipeline skips them and no welcome SMS is sent.
     const form = new FormData(e.currentTarget);
     const payload = {
       employee_id: String(form.get('employee_id') ?? '').trim(),
@@ -91,6 +89,7 @@ export default function RegisterForm({ stores }: { stores: Store[] }) {
       phone:       String(form.get('phone') ?? '').trim(),
       store_id:    selectedStore.id,
       roles:       selectedRoles,
+      sms_opted_in: consent,
     };
 
     setSubmitting(true);
@@ -256,7 +255,8 @@ export default function RegisterForm({ stores }: { stores: Store[] }) {
           aria-describedby="consent-detail"
         />
         <span id="consent-detail">
-          I agree to receive SMS shift alerts from ShiftAlert at the phone
+          I agree to receive SMS shift alerts from{' '}
+          <strong>ShiftAlert, operated by James Karui</strong>, at the phone
           number above. Message frequency varies. Message and data rates may
           apply. Reply <strong>HELP</strong> for help or{' '}
           <strong>STOP</strong> to unsubscribe at any time. See our{' '}
@@ -271,13 +271,20 @@ export default function RegisterForm({ stores }: { stores: Store[] }) {
         </span>
       </label>
 
+      {!consent && (
+        <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          Without checking the SMS box you&apos;ll be registered, but you
+          won&apos;t receive shift alerts until you opt in.
+        </p>
+      )}
+
       {error && (
         <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
       )}
 
       <button
         type="submit"
-        disabled={submitting || !consent}
+        disabled={submitting}
         className="w-full rounded-md bg-black px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
       >
         {submitting ? 'Submitting…' : 'Register'}

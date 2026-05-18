@@ -73,9 +73,9 @@ export async function POST(req: Request) {
   // include the STOP keyword.
   if (/^help\b/i.test(bodyText)) {
     return twiml(
-      'ShiftAlert: shift-pickup alerts for Chipotle crew. Reply YES to ' +
-        'claim a shift, STOP to unsubscribe. Msg&data rates may apply. ' +
-        'Questions? Contact your manager.',
+      'ShiftAlert (operated by James Karui): shift-pickup alerts for ' +
+        'Chipotle crew. Reply YES to claim a shift, STOP to unsubscribe. ' +
+        'Msg&data rates may apply. Questions? Contact your manager.',
     );
   }
 
