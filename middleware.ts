@@ -37,7 +37,7 @@ export async function middleware(request: NextRequest) {
 
   if (url.pathname.startsWith('/dashboard') && !user) {
     const loginUrl = url.clone();
-    loginUrl.pathname = '/login';
+    loginUrl.pathname = '/manager-login';
     loginUrl.searchParams.set('next', url.pathname);
     return NextResponse.redirect(loginUrl);
   }
@@ -46,5 +46,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/login'],
+  matcher: ['/dashboard/:path*', '/manager-login'],
 };

@@ -29,15 +29,16 @@ export default function SmsPolicyPage() {
       <section className="mt-8 space-y-4">
         <h2 className="text-xl font-semibold">How users opt in</h2>
         <p>
-          Crew members opt in by completing the registration form at{' '}
-          <Link href="/register" className="font-medium underline">
-            /register
+          Crew members opt in by completing the registration form on the{' '}
+          <Link href="/" className="font-medium underline">
+            ShiftAlert home page
           </Link>
-          . The form collects the user&apos;s employee ID, full name, mobile
-          phone number, home store, and roles. Checking the SMS consent box
-          is <strong>optional</strong> — a worker may register without
-          opting in, in which case no SMS will be sent. The consent box on
-          the form reads:
+          . The form is publicly accessible — no account or login is
+          required. It collects the user&apos;s employee ID, full name,
+          mobile phone number, home store, and roles. Checking the SMS
+          consent box is <strong>optional</strong> — a worker may register
+          without opting in, in which case no SMS will be sent. The consent
+          box on the form reads:
         </p>
         <blockquote className="rounded-md border-l-4 border-black bg-gray-50 px-4 py-3 text-sm">
           &ldquo;I agree to receive SMS shift alerts from ShiftAlert,

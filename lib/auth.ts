@@ -10,15 +10,15 @@ export type Manager = {
 };
 
 // Resolve the current manager by joining auth.uid() against public.managers.
-// Redirects to /login if there's no session, and to /login with an error if
-// the session exists but no manager row is wired up.
+// Redirects to /manager-login if there's no session, and with an error if the
+// session exists but no manager row is wired up.
 export async function requireManager(): Promise<Manager> {
   const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect('/login');
+  if (!user) redirect('/manager-login');
 
   const { data, error } = await supabase
     .from('managers')
@@ -28,7 +28,7 @@ export async function requireManager(): Promise<Manager> {
 
   if (error || !data) {
     // Auth user exists but has no manager row — treat as unauthorised.
-    redirect('/login?error=no_manager');
+    redirect('/manager-login?error=no_manager');
   }
 
   // Supabase typings return `store` as an array for nested selects on some

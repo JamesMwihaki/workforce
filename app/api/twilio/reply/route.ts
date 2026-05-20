@@ -82,8 +82,7 @@ export async function POST(req: Request) {
   if (!worker) {
     return twiml(
       "We don't recognise this number. Please register at " +
-        (process.env.NEXT_PUBLIC_APP_URL ?? '') +
-        '/register',
+        (process.env.NEXT_PUBLIC_APP_URL ?? ''),
     );
   }
 
