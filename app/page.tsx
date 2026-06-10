@@ -32,14 +32,30 @@ export default async function Home() {
         <RegisterForm stores={stores ?? []} />
       )}
 
-      <footer className="mt-10 border-t border-gray-200 pt-4 text-center text-xs text-gray-600">
-        <Link href="/sms-policy" className="underline">
-          SMS Policy &amp; Consent
-        </Link>
-        <span className="mx-2 text-gray-400">·</span>
-        <Link href="/manager-login" className="underline">
-          Manager sign-in
-        </Link>
+      <footer className="mt-10 border-t border-gray-200 pt-4 text-xs text-gray-600">
+        <p>
+          ShiftAlert is a shift-coverage notification service operated by{' '}
+          <span className="font-medium text-gray-800">James Karui</span>, a
+          sole proprietor based in Overland Park, Kansas. We help restaurant
+          teams fill open shifts by sending SMS alerts to employees who have
+          opted in.
+        </p>
+        <p className="mt-2">
+          Questions? Email{' '}
+          <a href="mailto:jmsmwhk@gmail.com" className="underline">
+            jmsmwhk@gmail.com
+          </a>{' '}
+          or call{' '}
+          <a href="tel:+19133250030" className="underline">
+            (913) 325-0030
+          </a>
+          .
+        </p>
+        <p className="mt-2 text-center">
+          <Link href="/sms-policy" className="underline">
+            SMS Policy &amp; Consent
+          </Link>
+        </p>
       </footer>
     </main>
   );
