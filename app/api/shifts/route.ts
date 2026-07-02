@@ -92,22 +92,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Could not create the request.' }, { status: 500 });
   }
 
-  // 4. Fire-and-forget broadcast. Errors are logged but don't fail the request —
-  //    the shift exists; the manager can resend if needed.
+  // 4. Broadcast before responding. This MUST be awaited: on Vercel the
+  //    function is suspended as soon as the response returns, so a
+  //    fire-and-forget broadcast stalls until some later request thaws the
+  //    instance (workers got their alert only after one of them texted in).
+  //    Errors are still non-fatal — the shift exists; the manager can resend.
   const storeName = Array.isArray(manager.store)
     ? manager.store[0]?.name
     : (manager.store as { name?: string } | null)?.name;
 
-  broadcastShift({
-    shiftId:          shift.id,
-    shiftCode:        shift.code,
-    storeName:        storeName ?? 'a neighbouring store',
-    role:             shift.role,
-    shiftDate:        shift.shift_date,
-    startTime:        shift.start_time,
-    endTime:          shift.end_time,
-    requestingStoreId: shift.requesting_store_id,
-  }).catch((e) => console.error('[broadcastShift]', e));
+  try {
+    await broadcastShift({
+      shiftId:          shift.id,
+      shiftCode:        shift.code,
+      storeName:        storeName ?? 'a neighbouring store',
+      role:             shift.role,
+      shiftDate:        shift.shift_date,
+      startTime:        shift.start_time,
+      endTime:          shift.end_time,
+      requestingStoreId: shift.requesting_store_id,
+    });
+  } catch (e) {
+    console.error('[broadcastShift]', e);
+  }
 
   return NextResponse.json({ id: shift.id });
 }

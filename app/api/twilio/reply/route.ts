@@ -96,12 +96,23 @@ export async function POST(req: Request) {
     return twiml('Reply YES to claim a shift, or STOP to unsubscribe.');
   }
 
-  // 7. Identify which shift this is for. Prefer the embedded Shift ID; fall
-  //    back to the worker's most recent eligible open shift.
+  // 7. Identify which shift this is for. A bare YES is never enough — the
+  //    reply must carry the shift number from the alert (or the legacy UUID
+  //    from alerts sent before shift codes), so nobody gets booked into a
+  //    shift they never saw.
+  const hasCode = CODE_RE.test(bodyText) || UUID_RE.test(bodyText);
+  if (!hasCode) {
+    return twiml(
+      'Please include the shift number from the alert, e.g. "YES 12" — ' +
+        'or just tap the link in the alert message.',
+    );
+  }
+
   const shiftId = await resolveShiftId(supabase, bodyText, worker);
   if (!shiftId) {
     return twiml(
-      "We couldn't match your reply to an open shift. The shift may already be filled.",
+      "We couldn't match that shift number to one of your alerts. " +
+        'Please double-check the number, e.g. "YES 12".',
     );
   }
 
@@ -199,20 +210,9 @@ async function resolveShiftId(
   const idMatch = bodyText.match(UUID_RE);
   if (idMatch) return idMatch[0];
 
-  // Fallback: most recent open shift in the last 24h that this worker
-  // would have been broadcast to (different store, matching role).
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { data } = await supabase
-    .from('shift_requests')
-    .select('id, role, requesting_store_id')
-    .eq('status', 'open')
-    .neq('requesting_store_id', worker.store_id)
-    .in('role', worker.roles)
-    .gte('created_at', since)
-    .order('created_at', { ascending: false })
-    .limit(1);
-
-  return data?.[0]?.id ?? null;
+  // No code, no UUID — the caller already rejects bare YES before we get
+  // here, so this is unreachable in practice.
+  return null;
 }
 
 async function getStoreName(
