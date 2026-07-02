@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { fetchClaimDetails } from '@/lib/claims';
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const supabase = createClient();
@@ -20,15 +21,16 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   if (shiftErr) return NextResponse.json({ error: shiftErr.message }, { status: 500 });
   if (!shift)   return NextResponse.json({ error: 'Not found.' }, { status: 404 });
 
-  const { data: claims, error: claimsErr } = await supabase
-    .from('shift_claims')
-    .select('id, status, claimed_at, worker:workers(id, name, store:stores(name))')
-    .eq('shift_request_id', params.id)
-    .order('claimed_at');
-
-  if (claimsErr) return NextResponse.json({ error: claimsErr.message }, { status: 500 });
-
-  return NextResponse.json({ shift, claims: claims ?? [] });
+  // The RLS-scoped shift lookup above proved the caller may see this shift;
+  // claim enrichment (worker phone, home store, that store's managers) needs
+  // the service role because workers/managers have no client read policies.
+  try {
+    const claims = await fetchClaimDetails(params.id);
+    return NextResponse.json({ shift, claims });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Could not load claims.';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {

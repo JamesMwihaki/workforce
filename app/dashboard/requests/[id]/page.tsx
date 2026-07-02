@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireManager } from '@/lib/auth';
+import { fetchClaimDetails } from '@/lib/claims';
 import { ROLE_LABELS, type Role } from '@/lib/roles';
 import { formatDate, formatTime } from '@/lib/format';
 import RequestLive from './RequestLive';
@@ -19,17 +20,6 @@ type Shift = {
   status:              'open' | 'filled' | 'cancelled';
 };
 
-type Claim = {
-  id:         string;
-  status:     'confirmed' | 'waitlisted';
-  claimed_at: string;
-  worker: {
-    id:    string;
-    name:  string;
-    store: { name: string } | null;
-  } | null;
-};
-
 export default async function RequestDetail({
   params,
 }: {
@@ -38,6 +28,8 @@ export default async function RequestDetail({
   await requireManager();
   const supabase = createClient();
 
+  // RLS scopes this lookup to the manager's own store — it doubles as the
+  // authorization check for the service-role claim fetch below.
   const { data: shift } = await supabase
     .from('shift_requests')
     .select(
@@ -48,13 +40,7 @@ export default async function RequestDetail({
 
   if (!shift) notFound();
 
-  const { data: claims } = await supabase
-    .from('shift_claims')
-    .select('id, status, claimed_at, worker:workers(id, name, store:stores(name))')
-    .eq('shift_request_id', params.id)
-    .order('claimed_at');
-
-  const initialClaims = normalizeClaims((claims ?? []) as unknown as Claim[]);
+  const initialClaims = await fetchClaimDetails(shift.id);
 
   return (
     <div className="space-y-5">
@@ -82,15 +68,4 @@ export default async function RequestDetail({
       </div>
     </div>
   );
-}
-
-function normalizeClaims(rows: Claim[]): Claim[] {
-  // Supabase nested selects sometimes hand back arrays for to-one joins;
-  // collapse them so the client component sees a stable shape.
-  return rows.map((r) => {
-    const worker = Array.isArray(r.worker) ? r.worker[0] : r.worker;
-    if (!worker) return { ...r, worker: null };
-    const store = Array.isArray(worker.store) ? worker.store[0] : worker.store;
-    return { ...r, worker: { ...worker, store: store ?? null } };
-  });
 }

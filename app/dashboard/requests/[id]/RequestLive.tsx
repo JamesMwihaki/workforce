@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { Role } from '@/lib/roles';
+import type { ClaimDetail } from '@/lib/claims';
+import { formatPhone } from '@/lib/format';
 
 type Shift = {
   id:                  string;
@@ -15,16 +17,7 @@ type Shift = {
   status:              'open' | 'filled' | 'cancelled';
 };
 
-type Claim = {
-  id:         string;
-  status:     'confirmed' | 'waitlisted';
-  claimed_at: string;
-  worker: {
-    id:    string;
-    name:  string;
-    store: { name: string } | null;
-  } | null;
-};
+type Claim = ClaimDetail;
 
 export default function RequestLive({
   shiftId,
@@ -158,11 +151,41 @@ function ClaimsList({
       ) : (
         <ul className="mt-1 divide-y divide-gray-100 rounded-md border border-gray-100">
           {rows.map((c) => (
-            <li key={c.id} className="flex items-center justify-between px-3 py-2 text-sm">
-              <span>{c.worker?.name ?? 'Unknown worker'}</span>
-              <span className="text-xs text-gray-500">
-                {c.worker?.store?.name ?? '—'}
-              </span>
+            <li key={c.id} className="px-3 py-2 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-medium">{c.worker?.name ?? 'Unknown worker'}</span>
+                <span className="text-xs text-gray-500">
+                  {c.worker?.store?.name ?? '—'}
+                </span>
+              </div>
+              {c.worker && (
+                <div className="mt-0.5 space-y-0.5 text-xs text-gray-600">
+                  <p>
+                    <a href={`tel:${c.worker.phone}`} className="hover:underline">
+                      {formatPhone(c.worker.phone)}
+                    </a>
+                    {' · '}Emp #{c.worker.employee_id}
+                  </p>
+                  <p className="text-gray-500">
+                    {c.worker.managers.length > 0 ? (
+                      <>
+                        Manager:{' '}
+                        {c.worker.managers.map((m, i) => (
+                          <span key={m.email}>
+                            {i > 0 && ', '}
+                            {m.name}{' '}
+                            <a href={`mailto:${m.email}`} className="hover:underline">
+                              ({m.email})
+                            </a>
+                          </span>
+                        ))}
+                      </>
+                    ) : (
+                      'No manager registered for their store'
+                    )}
+                  </p>
+                </div>
+              )}
             </li>
           ))}
         </ul>
