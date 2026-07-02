@@ -90,8 +90,9 @@ export async function POST(req: Request) {
     return twiml('You\'re currently opted out. Reply START to receive alerts again.');
   }
 
-  // 6. Only YES (in any case, possibly with extra text) counts as a claim.
-  if (!/\byes\b/i.test(bodyText)) {
+  // 6. Only YES (in any case, possibly with extra text or a glued-on code
+  //    like "YES42") counts as a claim.
+  if (!/\byes\b/i.test(bodyText) && !CODE_RE.test(bodyText)) {
     return twiml('Reply YES to claim a shift, or STOP to unsubscribe.');
   }
 
@@ -104,75 +105,97 @@ export async function POST(req: Request) {
     );
   }
 
-  // 8. Atomic claim:
-  //    Try to increment headcount_confirmed only if there's still room. If the
-  //    update affects a row, the worker is confirmed; otherwise they go on the
-  //    waitlist.
-  const { data: claimedShift, error: claimErr } = await supabase
-    .rpc('claim_shift_seat', { p_shift_id: shiftId });
+  // 8. Atomic claim via claim_shift(): claim-row insert, seat accounting,
+  //    duplicate-reply detection, and the one-shift-per-day rule all happen
+  //    in a single DB transaction, so a repeat YES can never eat a second seat.
+  const { data: shiftForMsg } = await supabase
+    .from('shift_requests')
+    .select('id, shift_date, start_time, end_time, requesting_store_id')
+    .eq('id', shiftId)
+    .maybeSingle<{
+      id:                  string;
+      shift_date:          string;
+      start_time:          string;
+      end_time:            string;
+      requesting_store_id: string;
+    }>();
 
-  if (claimErr) {
-    console.error('[twilio/reply] claim_shift_seat', claimErr);
-    return twiml('Something went wrong on our end. Please try again in a minute.');
-  }
-
-  // RPC returns either the updated shift row or null if no seats were available.
-  const updated = (claimedShift as null | {
-    id:                  string;
-    headcount_needed:    number;
-    headcount_confirmed: number;
-    status:              'open' | 'filled' | 'cancelled';
-    role:                Role;
-    shift_date:          string;
-    start_time:          string;
-    end_time:            string;
-    requesting_store_id: string;
-  });
-
-  if (updated && updated.status !== 'cancelled') {
-    // Confirmed
-    const { error: insErr } = await supabase.from('shift_claims').insert({
-      shift_request_id: updated.id,
-      worker_id:        worker.id,
-      status:           'confirmed',
-    });
-
-    if (insErr && insErr.code !== '23505') {
-      // 23505 = unique violation: worker already claimed this shift. Treat
-      // duplicates as success, since the seat was already incremented for them.
-      console.error('[twilio/reply] insert claim', insErr);
-    }
-
-    const storeName = await getStoreName(supabase, updated.requesting_store_id);
+  if (!shiftForMsg) {
     return twiml(
-      `You're confirmed for ${formatDate(updated.shift_date)} ` +
-        `${formatTime(updated.start_time)}-${formatTime(updated.end_time)} at ${storeName}. ` +
-        'Thank you!',
+      "We couldn't match your reply to an open shift. The shift may already be filled.",
     );
   }
 
-  // Filled or cancelled — log a waitlist row. Ignore unique-violation if they
-  // already have a waitlist row for this shift.
-  await supabase.from('shift_claims').insert({
-    shift_request_id: shiftId,
-    worker_id:        worker.id,
-    status:           'waitlisted',
+  const { data: claimResult, error: claimErr } = await supabase.rpc('claim_shift', {
+    p_shift_id:  shiftId,
+    p_worker_id: worker.id,
   });
 
-  return twiml(
-    "Thanks for responding — this shift has been filled. We'll reach out for future shifts.",
-  );
+  if (claimErr) {
+    console.error('[twilio/reply] claim_shift', claimErr);
+    return twiml('Something went wrong on our end. Please try again in a minute.');
+  }
+
+  const when =
+    `${formatDate(shiftForMsg.shift_date)} ` +
+    `${formatTime(shiftForMsg.start_time)}-${formatTime(shiftForMsg.end_time)}`;
+
+  switch (claimResult as string) {
+    case 'confirmed': {
+      const storeName = await getStoreName(supabase, shiftForMsg.requesting_store_id);
+      return twiml(`You're confirmed for ${when} at ${storeName}. Thank you!`);
+    }
+    case 'already_confirmed': {
+      const storeName = await getStoreName(supabase, shiftForMsg.requesting_store_id);
+      return twiml(`You're already confirmed for ${when} at ${storeName} — no need to reply again.`);
+    }
+    case 'day_conflict':
+      return twiml(
+        `You're already confirmed for another shift on ${formatDate(shiftForMsg.shift_date)}, ` +
+          "so we can't book you for this one too. We'll reach out for future shifts.",
+      );
+    case 'already_waitlisted':
+    case 'waitlisted':
+      return twiml(
+        "Thanks for responding — this shift has been filled. We'll reach out for future shifts.",
+      );
+    case 'closed':
+    case 'not_found':
+    default:
+      return twiml('This shift is no longer available. We\'ll reach out for future shifts.');
+  }
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────
 
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+// "YES 42", "yes #42", "YES42" — the short code broadcast in every alert.
+const CODE_RE = /\byes\s*#?\s*(\d{1,9})\b/i;
 
 async function resolveShiftId(
   supabase: ReturnType<typeof createServiceClient>,
   bodyText: string,
   worker: { id: string; store_id: string; roles: Role[] },
 ): Promise<string | null> {
+  // Preferred: the short shift code from the alert. Scope the lookup to
+  // shifts this worker could have been alerted about (matching role, not
+  // their own store) so a guessed code can't book them somewhere invalid.
+  // No status filter — claim_shift decides between confirm/waitlist/closed.
+  const codeMatch = bodyText.match(CODE_RE);
+  if (codeMatch) {
+    const { data } = await supabase
+      .from('shift_requests')
+      .select('id')
+      .eq('code', Number(codeMatch[1]))
+      .neq('requesting_store_id', worker.store_id)
+      .in('role', worker.roles)
+      .maybeSingle();
+    // A code was given; if it doesn't resolve, don't fall through and guess
+    // a different shift.
+    return data?.id ?? null;
+  }
+
+  // Legacy: alerts sent before shift codes embedded the raw UUID.
   const idMatch = bodyText.match(UUID_RE);
   if (idMatch) return idMatch[0];
 

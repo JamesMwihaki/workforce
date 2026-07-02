@@ -11,6 +11,7 @@ export const dynamic = 'force-dynamic';
 
 type Shift = {
   id:                  string;
+  code:                number;
   role:                Role;
   shift_date:          string;
   start_time:          string;
@@ -33,7 +34,7 @@ export default async function RequestDetail({
   const { data: shift } = await supabase
     .from('shift_requests')
     .select(
-      'id, role, shift_date, start_time, end_time, headcount_needed, headcount_confirmed, status',
+      'id, code, role, shift_date, start_time, end_time, headcount_needed, headcount_confirmed, status',
     )
     .eq('id', params.id)
     .maybeSingle<Shift>();
@@ -52,7 +53,10 @@ export default async function RequestDetail({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">
-              {ROLE_LABELS[shift.role]}
+              {ROLE_LABELS[shift.role]}{' '}
+              <span className="text-sm font-normal text-gray-500">
+                · workers reply YES {shift.code}
+              </span>
             </h1>
             <p className="mt-1 text-sm text-gray-600">
               {formatDate(shift.shift_date)} ·{' '}

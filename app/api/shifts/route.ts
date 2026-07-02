@@ -85,7 +85,7 @@ export async function POST(req: Request) {
       end_time:            parsed.data.end_time,
       headcount_needed:    parsed.data.headcount_needed,
     })
-    .select('id, role, shift_date, start_time, end_time, headcount_needed, requesting_store_id')
+    .select('id, code, role, shift_date, start_time, end_time, headcount_needed, requesting_store_id')
     .single();
 
   if (insErr || !shift) {
@@ -100,6 +100,7 @@ export async function POST(req: Request) {
 
   broadcastShift({
     shiftId:          shift.id,
+    shiftCode:        shift.code,
     storeName:        storeName ?? 'a neighbouring store',
     role:             shift.role,
     shiftDate:        shift.shift_date,
