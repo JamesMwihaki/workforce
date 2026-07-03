@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { Role } from '@/lib/roles';
 import type { ClaimDetail } from '@/lib/claims';
@@ -23,33 +23,38 @@ export default function RequestLive({
   shiftId,
   initialShift,
   initialClaims,
+  initialNotified,
 }: {
-  shiftId:        string;
-  initialShift:   Shift;
-  initialClaims:  Claim[];
+  shiftId:         string;
+  initialShift:    Shift;
+  initialClaims:   Claim[];
+  initialNotified: number;
 }) {
   const [shift, setShift] = useState<Shift>(initialShift);
   const [claims, setClaims] = useState<Claim[]>(initialClaims);
+  const [notified, setNotified] = useState(initialNotified);
   const [cancelling, setCancelling] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Subscribe to Realtime updates on this shift and any new claims for it.
-  // Whenever something fires, we re-fetch the canonical view from /api/shifts/[id]
-  // — simpler than reconciling individual events and only one round-trip.
+  // Re-fetch the canonical view from /api/shifts/[id] — simpler than
+  // reconciling individual events and only one round-trip.
+  const refetch = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/shifts/${shiftId}`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const body = await res.json();
+      if (body.shift) setShift(body.shift);
+      if (Array.isArray(body.claims)) setClaims(body.claims);
+      if (typeof body.notified === 'number') setNotified(body.notified);
+    } catch {
+      // network blip — next event will retry
+    }
+  }, [shiftId]);
+
+  // Subscribe to Realtime updates on this shift and any claims for it.
   useEffect(() => {
     const supabase = createClient();
-
-    async function refetch() {
-      try {
-        const res = await fetch(`/api/shifts/${shiftId}`, { cache: 'no-store' });
-        if (!res.ok) return;
-        const body = await res.json();
-        if (body.shift) setShift(body.shift);
-        if (Array.isArray(body.claims)) setClaims(body.claims);
-      } catch {
-        // network blip — next event will retry
-      }
-    }
 
     const channel = supabase
       .channel(`shift:${shiftId}`)
@@ -73,10 +78,10 @@ export default function RequestLive({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [shiftId]);
+  }, [shiftId, refetch]);
 
   async function onCancel() {
-    if (!confirm('Cancel this shift request?')) return;
+    if (!confirm('Cancel this shift request? Confirmed workers will get a text telling them not to come in.')) return;
     setCancelling(true);
     setError(null);
     try {
@@ -98,6 +103,34 @@ export default function RequestLive({
     }
   }
 
+  async function onRemove(claim: Claim) {
+    const name = claim.worker?.name ?? 'this worker';
+    if (
+      !confirm(
+        `Take ${name} off this shift? They'll get a text telling them not to come in, and their seat reopens.`,
+      )
+    ) {
+      return;
+    }
+    setRemovingId(claim.id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/shifts/${shiftId}/claims/${claim.id}`, {
+        method: 'DELETE',
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(body.error ?? 'Could not remove the worker.');
+        return;
+      }
+      await refetch();
+    } catch {
+      setError('Network error.');
+    } finally {
+      setRemovingId(null);
+    }
+  }
+
   const confirmed = claims.filter((c) => c.status === 'confirmed');
   const waitlist  = claims.filter((c) => c.status === 'waitlisted');
 
@@ -109,6 +142,12 @@ export default function RequestLive({
           {shift.headcount_confirmed} / {shift.headcount_needed}
         </span>
       </div>
+
+      <p className="text-xs text-gray-500">
+        {notified === 0
+          ? 'No workers alerted yet'
+          : `${notified} worker${notified === 1 ? '' : 's'} alerted by text`}
+      </p>
 
       {shift.status === 'open' && (
         <button
@@ -125,7 +164,13 @@ export default function RequestLive({
       )}
 
       <div className="mt-4 w-full">
-        <ClaimsList title="Confirmed" rows={confirmed} emptyHint="No confirmations yet." />
+        <ClaimsList
+          title="Confirmed"
+          rows={confirmed}
+          emptyHint="No confirmations yet."
+          onRemove={shift.status !== 'cancelled' ? onRemove : undefined}
+          removingId={removingId}
+        />
         {waitlist.length > 0 && (
           <ClaimsList title="Waitlisted" rows={waitlist} emptyHint="" />
         )}
@@ -138,10 +183,14 @@ function ClaimsList({
   title,
   rows,
   emptyHint,
+  onRemove,
+  removingId,
 }: {
-  title:     string;
-  rows:      Claim[];
-  emptyHint: string;
+  title:      string;
+  rows:       Claim[];
+  emptyHint:  string;
+  onRemove?:  (claim: Claim) => void;
+  removingId?: string | null;
 }) {
   return (
     <div className="mt-3 w-full text-left">
@@ -154,8 +203,19 @@ function ClaimsList({
             <li key={c.id} className="px-3 py-2 text-sm">
               <div className="flex items-center justify-between gap-3">
                 <span className="font-medium">{c.worker?.name ?? 'Unknown worker'}</span>
-                <span className="text-xs text-gray-500">
-                  {c.worker?.store?.name ?? '—'}
+                <span className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">
+                    {c.worker?.store?.name ?? '—'}
+                  </span>
+                  {onRemove && (
+                    <button
+                      onClick={() => onRemove(c)}
+                      disabled={removingId === c.id}
+                      className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      {removingId === c.id ? 'Removing…' : 'Remove'}
+                    </button>
+                  )}
                 </span>
               </div>
               {c.worker && (

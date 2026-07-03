@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server';
-import { getTwilioClient, getTwilioFromNumber } from '@/lib/twilio';
+import { getTwilioFromNumber } from '@/lib/twilio';
+import { sendSms } from '@/lib/sms';
 import { ROLE_LABELS, type Role } from '@/lib/roles';
 import { formatDate, formatTime } from '@/lib/format';
 
@@ -54,7 +55,6 @@ export async function broadcastShift(input: BroadcastInput): Promise<void> {
   const recipients = workers.filter((w) => !bookedWorkerIds.has(w.id));
   if (recipients.length === 0) return;
 
-  const client = getTwilioClient();
   const from = getTwilioFromNumber();
 
   // The sms: link opens the worker's messaging app with the reply pre-typed —
@@ -66,13 +66,10 @@ export async function broadcastShift(input: BroadcastInput): Promise<void> {
     `sms:${from}?&body=YES%20${input.shiftCode} ` +
     `Reply HELP for help, STOP to unsubscribe.`;
 
-  // Send in parallel but cap concurrency loosely by awaiting Promise.allSettled
-  // so one bad number doesn't tank the broadcast.
-  await Promise.allSettled(
-    recipients.map((w) =>
-      client.messages.create({ to: w.phone, from, body: message }).catch((e) => {
-        console.error('[broadcastShift] sms send', w.phone, e?.message ?? e);
-      }),
-    ),
+  await sendSms(
+    input.shiftId,
+    'shift_alert',
+    message,
+    recipients.map((w) => ({ workerId: w.id, phone: w.phone })),
   );
 }

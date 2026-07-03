@@ -4,7 +4,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 // the RequestLive client component.
 export type ClaimDetail = {
   id:         string;
-  status:     'confirmed' | 'waitlisted';
+  status:     'confirmed' | 'waitlisted' | 'cancelled';
   claimed_at: string;
   worker: {
     id:          string;

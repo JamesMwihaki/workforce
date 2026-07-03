@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { fetchClaimDetails } from '@/lib/claims';
+import { sendSms, countAlerted } from '@/lib/sms';
+import { formatDate, formatTime } from '@/lib/format';
+import { ROLE_LABELS, type Role } from '@/lib/roles';
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const supabase = createClient();
@@ -25,8 +28,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   // claim enrichment (worker phone, home store, that store's managers) needs
   // the service role because workers/managers have no client read policies.
   try {
-    const claims = await fetchClaimDetails(params.id);
-    return NextResponse.json({ shift, claims });
+    const [claims, notified] = await Promise.all([
+      fetchClaimDetails(params.id),
+      countAlerted(params.id),
+    ]);
+    return NextResponse.json({ shift, claims, notified });
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Could not load claims.';
     return NextResponse.json({ error: message }, { status: 500 });
@@ -43,7 +49,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   // Confirm the shift belongs to the caller's store before mutating.
   const { data: shift, error: lookupErr } = await supabase
     .from('shift_requests')
-    .select('id, status')
+    .select('id, status, role, shift_date, start_time, end_time, store:stores(name)')
     .eq('id', params.id)
     .maybeSingle();
 
@@ -73,7 +79,32 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
 
-  return NextResponse.json({ ok: true });
+  // Tell every confirmed worker not to come in. A confirmed worker showing
+  // up to a cancelled shift is the fastest way to lose their trust.
+  const { data: confirmed } = await svc
+    .from('shift_claims')
+    .select('worker_id, worker:workers(phone)')
+    .eq('shift_request_id', params.id)
+    .eq('status', 'confirmed');
+
+  const recipients = (confirmed ?? []).flatMap((c) => {
+    const worker = Array.isArray(c.worker) ? c.worker[0] : c.worker;
+    return worker?.phone ? [{ workerId: c.worker_id, phone: worker.phone }] : [];
+  });
+
+  let notified = 0;
+  if (recipients.length > 0) {
+    const store = Array.isArray(shift.store) ? shift.store[0] : shift.store;
+    const message =
+      `[ShiftAlert] CANCELLED: the ${ROLE_LABELS[shift.role as Role]} shift on ` +
+      `${formatDate(shift.shift_date)} from ${formatTime(shift.start_time)} to ` +
+      `${formatTime(shift.end_time)} at ${store?.name ?? 'the requesting store'} ` +
+      `has been cancelled. You do not need to come in.`;
+    const result = await sendSms(params.id, 'shift_cancelled', message, recipients);
+    notified = result.sent;
+  }
+
+  return NextResponse.json({ ok: true, notified });
 }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {

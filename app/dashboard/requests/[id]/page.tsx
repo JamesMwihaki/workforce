@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireManager } from '@/lib/auth';
 import { fetchClaimDetails } from '@/lib/claims';
+import { countAlerted } from '@/lib/sms';
 import { ROLE_LABELS, type Role } from '@/lib/roles';
 import { formatDate, formatTime } from '@/lib/format';
 import RequestLive from './RequestLive';
@@ -41,7 +42,10 @@ export default async function RequestDetail({
 
   if (!shift) notFound();
 
-  const initialClaims = await fetchClaimDetails(shift.id);
+  const [initialClaims, initialNotified] = await Promise.all([
+    fetchClaimDetails(shift.id),
+    countAlerted(shift.id),
+  ]);
 
   return (
     <div className="space-y-5">
@@ -67,6 +71,7 @@ export default async function RequestDetail({
             shiftId={shift.id}
             initialShift={shift}
             initialClaims={initialClaims}
+            initialNotified={initialNotified}
           />
         </div>
       </div>
