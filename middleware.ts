@@ -35,7 +35,10 @@ export async function middleware(request: NextRequest) {
 
   const url = request.nextUrl;
 
-  if (url.pathname.startsWith('/dashboard') && !user) {
+  const isProtected =
+    url.pathname.startsWith('/dashboard') || url.pathname.startsWith('/admin');
+
+  if (isProtected && !user) {
     const loginUrl = url.clone();
     loginUrl.pathname = '/manager-login';
     loginUrl.searchParams.set('next', url.pathname);
@@ -46,5 +49,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/manager-login'],
+  matcher: ['/dashboard/:path*', '/admin/:path*', '/manager-login'],
 };

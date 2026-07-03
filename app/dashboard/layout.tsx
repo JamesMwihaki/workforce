@@ -21,6 +21,14 @@ export default async function DashboardLayout({
             <span className="hidden text-gray-600 sm:inline">
               {manager.store?.name ?? '—'} · {manager.name}
             </span>
+            {manager.is_admin && (
+              <Link
+                href="/admin"
+                className="text-gray-600 hover:text-gray-900 hover:underline"
+              >
+                Admin
+              </Link>
+            )}
             <form action="/logout" method="post">
               <button
                 type="submit"
