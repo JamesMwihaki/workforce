@@ -53,7 +53,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const { data: target } = await svc
     .from('managers')
-    .select('id')
+    .select('id, worker_id')
     .eq('id', id)
     .maybeSingle();
   if (!target) {
@@ -70,6 +70,20 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (error) {
       return NextResponse.json(
         { error: `Couldn't update the manager: ${error.message}` },
+        { status: 500 },
+      );
+    }
+  }
+
+  // A manager is also a worker: moving stores moves their worker record too.
+  if (store_id !== undefined && target.worker_id) {
+    const { error } = await svc
+      .from('workers')
+      .update({ store_id })
+      .eq('id', target.worker_id);
+    if (error) {
+      return NextResponse.json(
+        { error: `Manager updated, but their worker record didn't move: ${error.message}` },
         { status: 500 },
       );
     }
@@ -122,7 +136,8 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     );
   }
 
-  // Deleting the auth user cascades to the managers row.
+  // Deleting the auth user cascades to the managers row. Their worker record
+  // is left untouched — losing manager access doesn't stop them being a worker.
   const { error } = await svc.auth.admin.deleteUser(id);
   if (error) {
     return NextResponse.json(
