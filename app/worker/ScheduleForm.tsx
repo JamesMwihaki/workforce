@@ -3,17 +3,18 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { ScheduleEntry } from '@/lib/schedule';
+import TimeRangeEditor, { formatTime, isValidEnd } from '@/app/components/TimeRangeEditor';
 
 // Monday-first display to match the Mon–Sun work week; weekday numbers stay
 // in JS getDay() convention (0 = Sunday).
-const DAYS: { weekday: number; label: string }[] = [
-  { weekday: 1, label: 'Monday' },
-  { weekday: 2, label: 'Tuesday' },
-  { weekday: 3, label: 'Wednesday' },
-  { weekday: 4, label: 'Thursday' },
-  { weekday: 5, label: 'Friday' },
-  { weekday: 6, label: 'Saturday' },
-  { weekday: 0, label: 'Sunday' },
+const DAYS: { weekday: number; label: string; short: string }[] = [
+  { weekday: 1, label: 'Monday',    short: 'Mon' },
+  { weekday: 2, label: 'Tuesday',   short: 'Tue' },
+  { weekday: 3, label: 'Wednesday', short: 'Wed' },
+  { weekday: 4, label: 'Thursday',  short: 'Thu' },
+  { weekday: 5, label: 'Friday',    short: 'Fri' },
+  { weekday: 6, label: 'Saturday',  short: 'Sat' },
+  { weekday: 0, label: 'Sunday',    short: 'Sun' },
 ];
 
 type DayState = { working: boolean; start: string; end: string };
@@ -23,6 +24,10 @@ function hoursOf(start: string, end: string): number {
   const [eh, em] = end.split(':').map(Number);
   const endMin = eh === 0 && em === 0 ? 24 * 60 : eh * 60 + em;
   return Math.max(0, (endMin - (sh * 60 + sm)) / 60);
+}
+
+function formatHours(h: number): string {
+  return Number.isInteger(h) ? String(h) : h.toFixed(1);
 }
 
 export default function ScheduleForm({
@@ -47,6 +52,7 @@ export default function ScheduleForm({
     }
     return state;
   });
+  const [expanded, setExpanded] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -56,10 +62,21 @@ export default function ScheduleForm({
       days[weekday].working ? sum + hoursOf(days[weekday].start, days[weekday].end) : sum,
     0,
   );
+  const hasInvalid = DAYS.some(
+    ({ weekday }) =>
+      days[weekday].working && !isValidEnd(days[weekday].start, days[weekday].end),
+  );
 
-  function patch(weekday: number, p: Partial<DayState>) {
+  function toggleDay(weekday: number) {
     setSaved(false);
-    setDays((d) => ({ ...d, [weekday]: { ...d[weekday], ...p } }));
+    const turningOn = !days[weekday].working;
+    setDays((d) => ({ ...d, [weekday]: { ...d[weekday], working: turningOn } }));
+    setExpanded(turningOn ? weekday : expanded === weekday ? null : expanded);
+  }
+
+  function setTimes(weekday: number, start: string, end: string) {
+    setSaved(false);
+    setDays((d) => ({ ...d, [weekday]: { ...d[weekday], start, end } }));
   }
 
   async function onSave() {
@@ -85,6 +102,7 @@ export default function ScheduleForm({
         return;
       }
       setSaved(true);
+      setExpanded(null);
       router.refresh();
     } catch {
       setError('Network error. Please try again.');
@@ -94,15 +112,17 @@ export default function ScheduleForm({
   }
 
   return (
-    <section className="space-y-2">
+    <section className="space-y-3">
       <div className="flex items-baseline justify-between">
         <h2 className="text-sm font-semibold text-gray-900">My regular schedule</h2>
-        <span className="text-xs text-gray-500">{totalHours} hrs/week</span>
+        <span className="text-xs text-gray-500">
+          {formatHours(totalHours)} hrs/week
+        </span>
       </div>
       <p className="text-xs text-gray-500">
-        Your regular hours at your home store. On your days off we can text
-        you when your own store needs help — as long as picking it up keeps you
-        at or under 40 hours for the week (Mon–Sun).
+        Tap the days you normally work and set your hours. On your days off we
+        can text you when your own store needs help — as long as picking it up
+        keeps you at or under 40 hours for the week (Mon–Sun).
       </p>
       {!hasSubmitted && (
         <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -111,44 +131,90 @@ export default function ScheduleForm({
         </p>
       )}
 
-      <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
-        {DAYS.map(({ weekday, label }) => {
-          const day = days[weekday];
-          return (
-            <div key={weekday} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
-              <label className="flex w-28 items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={day.working}
-                  onChange={(e) => patch(weekday, { working: e.target.checked })}
-                  className="h-4 w-4 accent-black"
-                />
-                <span className={day.working ? 'font-medium text-gray-900' : 'text-gray-500'}>
-                  {label}
+      <div className="space-y-2 rounded-lg border border-gray-200 bg-white p-4">
+        <div
+          className="grid grid-cols-7 gap-1.5"
+          role="group"
+          aria-label="Days you regularly work"
+        >
+          {DAYS.map(({ weekday, short }) => {
+            const day = days[weekday];
+            return (
+              <button
+                key={weekday}
+                type="button"
+                aria-pressed={day.working}
+                onClick={() => toggleDay(weekday)}
+                className={`flex flex-col items-center rounded-md border px-1 py-2 transition ${
+                  day.working
+                    ? 'border-black bg-black text-white'
+                    : 'border-gray-300 bg-white text-gray-900 hover:border-gray-500'
+                }`}
+              >
+                <span className="text-xs font-semibold">{short}</span>
+                <span
+                  className={`mt-0.5 text-[10px] ${
+                    day.working ? 'text-white/80' : 'text-gray-400'
+                  }`}
+                >
+                  {day.working ? formatHours(hoursOf(day.start, day.end)) + 'h' : 'Off'}
                 </span>
-              </label>
-              {day.working ? (
-                <div className="flex items-center gap-2 text-sm">
-                  <input
-                    type="time"
-                    value={day.start}
-                    onChange={(e) => patch(weekday, { start: e.target.value })}
-                    className="rounded-md border border-gray-300 px-2 py-1"
-                  />
-                  <span className="text-gray-400">–</span>
-                  <input
-                    type="time"
-                    value={day.end}
-                    onChange={(e) => patch(weekday, { end: e.target.value })}
-                    className="rounded-md border border-gray-300 px-2 py-1"
-                  />
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="divide-y divide-gray-100">
+          {DAYS.filter(({ weekday }) => days[weekday].working).map(
+            ({ weekday, label }) => {
+              const day = days[weekday];
+              const open = expanded === weekday;
+              return (
+                <div key={weekday} className="py-2">
+                  <button
+                    type="button"
+                    aria-expanded={open}
+                    onClick={() => setExpanded(open ? null : weekday)}
+                    className="flex w-full items-center justify-between rounded-md px-1 py-1.5 text-left hover:bg-gray-50"
+                  >
+                    <span className="text-sm font-medium text-gray-900">{label}</span>
+                    <span className="flex items-center gap-2 text-sm text-gray-600">
+                      {formatTime(day.start)} – {formatTime(day.end)}
+                      <svg
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        aria-hidden
+                        className={`h-4 w-4 text-gray-400 transition-transform ${
+                          open ? 'rotate-180' : ''
+                        }`}
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </span>
+                  </button>
+                  {open && (
+                    <div className="mt-2">
+                      <TimeRangeEditor
+                        start={day.start}
+                        end={day.end}
+                        onChange={(s, e) => setTimes(weekday, s, e)}
+                      />
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <span className="text-sm text-gray-400">Off</span>
-              )}
-            </div>
-          );
-        })}
+              );
+            },
+          )}
+          {DAYS.every(({ weekday }) => !days[weekday].working) && (
+            <p className="py-3 text-center text-sm text-gray-500">
+              All days off — tap a day above to add your regular hours.
+            </p>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -163,7 +229,7 @@ export default function ScheduleForm({
       <button
         type="button"
         onClick={onSave}
-        disabled={saving}
+        disabled={saving || hasInvalid}
         className="w-full rounded-md bg-black px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
       >
         {saving ? 'Saving…' : 'Save schedule'}

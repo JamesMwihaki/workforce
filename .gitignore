@@ -61,3 +61,4 @@ supabase/.branches/
 # data exports / scratch CSVs (not part of the app — used to build seed migrations)
 chipotle_stores.csv
 *.local.csv
+.env*
