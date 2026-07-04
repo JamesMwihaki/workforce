@@ -1,7 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import { ROLE_LABELS, type Role } from '@/lib/roles';
 import { formatDate, formatTime } from '@/lib/format';
 import { formatMoney, shiftHours } from '@/lib/incentives';
@@ -64,6 +65,37 @@ export default function IncentivesPanel({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  // Keep the page live: re-render the server data whenever a shift or claim
+  // changes (Realtime), when the tab regains focus, and every 30s as a
+  // fallback. Same pattern as RequestLive on the request-detail page.
+  useEffect(() => {
+    const supabase = createClient();
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+    const refresh = () => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(() => router.refresh(), 400);
+    };
+
+    const channel = supabase
+      .channel('admin-incentives')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shift_requests' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shift_claims' }, refresh)
+      .subscribe();
+
+    const onFocus = () => router.refresh();
+    window.addEventListener('focus', onFocus);
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') router.refresh();
+    }, 30_000);
+
+    return () => {
+      if (debounce) clearTimeout(debounce);
+      supabase.removeChannel(channel);
+      window.removeEventListener('focus', onFocus);
+      clearInterval(interval);
+    };
+  }, [router]);
 
   const owedRows      = ledger.filter((r) => r.done && !r.paid_at);
   const upcomingRows  = ledger.filter((r) => !r.done);
