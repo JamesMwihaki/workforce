@@ -33,6 +33,12 @@ export default async function DashboardLayout({
                 </Link>
               )}
               <Link
+                href="/dashboard/workers"
+                className="text-gray-600 hover:text-gray-900 hover:underline"
+              >
+                Workers
+              </Link>
+              <Link
                 href="/dashboard/account"
                 className="text-gray-600 hover:text-gray-900 hover:underline"
               >
