@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { ROLE_LABELS, type Role } from '@/lib/roles';
 
 export type WorkerRow = {
@@ -21,6 +21,7 @@ export default function WorkersPanel({ workers }: { workers: WorkerRow[] }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [promoteId, setPromoteId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -57,31 +58,28 @@ export default function WorkersPanel({ workers }: { workers: WorkerRow[] }) {
     }
   }
 
-  async function onMakeManager(w: WorkerRow) {
+  async function onPromoteSubmit(e: React.FormEvent<HTMLFormElement>, w: WorkerRow) {
+    e.preventDefault();
     setError(null);
     setNotice(null);
 
-    const email = window.prompt(
-      `Login email for ${w.name} (they'll sign in at /manager-login):`,
-    );
-    if (!email) return;
-    const password = window.prompt(
-      `Temporary password for ${w.name} (min 8 characters):`,
-    );
-    if (!password) return;
+    const form = new FormData(e.currentTarget);
+    const email = String(form.get('email') ?? '').trim();
+    const password = String(form.get('password') ?? '');
 
     setBusyId(w.id);
     try {
       const res = await fetch(`/api/admin/workers/${w.id}/promote`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({ email, password }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(body.error ?? 'Failed to make this worker a manager.');
         return;
       }
+      setPromoteId(null);
       setNotice(
         `${w.name} is now a manager at ${w.store_name}. Share the email and temporary password with them.`,
       );
@@ -126,8 +124,8 @@ export default function WorkersPanel({ workers }: { workers: WorkerRow[] }) {
           </thead>
           <tbody>
             {filtered.map((w) => (
+              <Fragment key={w.id}>
               <tr
-                key={w.id}
                 className={`border-b border-gray-100 last:border-0 ${
                   w.is_active ? '' : 'bg-gray-50 text-gray-400'
                 }`}
@@ -171,10 +169,14 @@ export default function WorkersPanel({ workers }: { workers: WorkerRow[] }) {
                       <button
                         type="button"
                         disabled={busyId === w.id}
-                        onClick={() => onMakeManager(w)}
+                        onClick={() => {
+                          setError(null);
+                          setNotice(null);
+                          setPromoteId((id) => (id === w.id ? null : w.id));
+                        }}
                         className="rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-900 transition hover:bg-gray-50 disabled:opacity-40"
                       >
-                        Make manager
+                        {promoteId === w.id ? 'Cancel' : 'Make manager'}
                       </button>
                     )}
                     <button
@@ -188,6 +190,55 @@ export default function WorkersPanel({ workers }: { workers: WorkerRow[] }) {
                   </div>
                 </td>
               </tr>
+              {promoteId === w.id && (
+                <tr className="border-b border-gray-100 bg-gray-50 last:border-0">
+                  <td colSpan={5} className="px-4 py-4">
+                    <form
+                      onSubmit={(e) => onPromoteSubmit(e, w)}
+                      className="flex flex-wrap items-end gap-3"
+                    >
+                      <p className="w-full text-sm text-gray-600">
+                        Make <span className="font-medium text-gray-900">{w.name}</span> a
+                        manager at {w.store_name}. They&apos;ll sign in at /manager-login
+                        with these credentials.
+                      </p>
+                      <label className="block flex-1 space-y-1" style={{ minWidth: '14rem' }}>
+                        <span className="text-xs font-semibold text-gray-900">Login email</span>
+                        <input
+                          name="email"
+                          type="email"
+                          required
+                          autoFocus
+                          placeholder="name@example.com"
+                          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:border-black focus:outline-none focus:ring-2 focus:ring-black/20"
+                        />
+                      </label>
+                      <label className="block flex-1 space-y-1" style={{ minWidth: '14rem' }}>
+                        <span className="text-xs font-semibold text-gray-900">
+                          Temporary password
+                        </span>
+                        <input
+                          name="password"
+                          type="text"
+                          required
+                          minLength={8}
+                          placeholder="Min 8 characters"
+                          autoComplete="off"
+                          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:border-black focus:outline-none focus:ring-2 focus:ring-black/20"
+                        />
+                      </label>
+                      <button
+                        type="submit"
+                        disabled={busyId === w.id}
+                        className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                      >
+                        {busyId === w.id ? 'Adding…' : 'Make manager'}
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             ))}
             {filtered.length === 0 && (
               <tr>
