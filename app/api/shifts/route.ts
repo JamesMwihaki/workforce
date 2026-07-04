@@ -4,6 +4,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { ROLES, ROLE_LABELS } from '@/lib/roles';
 import { broadcastShift } from '@/lib/broadcast';
 import { sendSms } from '@/lib/sms';
+import { getTwilioFromNumber } from '@/lib/twilio';
 import { formatDate, formatTime } from '@/lib/format';
 
 const Body = z.object({
@@ -127,14 +128,16 @@ export async function POST(req: Request) {
         const mgrStoreName = Array.isArray(manager.store)
           ? manager.store[0]?.name
           : (manager.store as { name?: string } | null)?.name;
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
+        // Same tap-to-reply sms: links the worker alerts use — one tap plus
+        // send, no typing, no website round-trip.
+        const from = getTwilioFromNumber();
         const message =
           `[ShiftAlert] Approval needed: ${manager.name} (${mgrStoreName ?? 'unknown store'}) ` +
           `is offering +$${incentiveAmount}/hr for a ${ROLE_LABELS[shift.role as keyof typeof ROLE_LABELS]} on ` +
           `${formatDate(shift.shift_date)}, ${formatTime(shift.start_time)} – ${formatTime(shift.end_time)} ` +
           `(${shift.headcount_needed} worker${shift.headcount_needed === 1 ? '' : 's'}). ` +
-          `Reply "APPROVE ${shift.code}" to send with the bonus, or "DENY ${shift.code}" ` +
-          `to send at regular pay. Or review: ${appUrl}/admin/incentives`;
+          `Tap to approve with bonus: sms:${from}?&body=APPROVE%20${shift.code} ` +
+          `or send at regular pay: sms:${from}?&body=DENY%20${shift.code}`;
 
         await sendSms(
           shift.id,
