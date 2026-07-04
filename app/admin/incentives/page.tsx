@@ -25,7 +25,11 @@ export default async function AdminIncentivesPage() {
 
   const todayUtc = new Date().toISOString().slice(0, 10);
 
-  const [{ data: pending }, { data: live }, { data: claims }] = await Promise.all([
+  const [
+    { data: pending, error: pendingErr },
+    { data: live, error: liveErr },
+    { data: claims, error: claimsErr },
+  ] = await Promise.all([
     svc
       .from('shift_requests')
       .select(
@@ -106,5 +110,15 @@ export default async function AdminIncentivesPage() {
     ];
   });
 
-  return <IncentivesPanel pending={pendingRows} live={liveRows} ledger={ledgerRows} />;
+  const loadError =
+    pendingErr?.message ?? liveErr?.message ?? claimsErr?.message ?? null;
+
+  return (
+    <IncentivesPanel
+      pending={pendingRows}
+      live={liveRows}
+      ledger={ledgerRows}
+      loadError={loadError}
+    />
+  );
 }

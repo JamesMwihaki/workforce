@@ -56,10 +56,12 @@ export default function IncentivesPanel({
   pending,
   live,
   ledger,
+  loadError,
 }: {
   pending: PendingShift[];
   live: LiveShift[];
   ledger: LedgerRow[];
+  loadError?: string | null;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -168,6 +170,11 @@ export default function IncentivesPanel({
         </div>
       </div>
 
+      {loadError && (
+        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+          Couldn&apos;t load some of this page&apos;s data: {loadError}
+        </p>
+      )}
       {error && (
         <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
       )}
