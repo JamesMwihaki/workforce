@@ -2,11 +2,8 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { one } from '@/lib/db';
-import { ROLES, ROLE_LABELS } from '@/lib/roles';
+import { ROLES } from '@/lib/roles';
 import { broadcastShift } from '@/lib/broadcast';
-import { sendSms } from '@/lib/sms';
-import { getTwilioFromNumber } from '@/lib/twilio';
-import { formatDate, formatTime } from '@/lib/format';
 
 const Body = z.object({
   role:             z.enum(ROLES),
@@ -78,11 +75,12 @@ export async function POST(req: Request) {
     );
   }
 
-  // Incentivised shifts wait for admin approval before any SMS goes out —
-  // unless an admin is creating the shift, which approves it implicitly.
+  // Incentives are trusted: any manager's bonus goes out immediately, no
+  // approval gate. To reinstate approvals, set status to 'pending' for
+  // non-admins here — the decide endpoints, APPROVE/DENY SMS handler, and
+  // pending UI are all still in place.
   const incentiveAmount = parsed.data.incentive_amount;
-  const incentiveStatus =
-    incentiveAmount > 0 ? (manager.is_admin ? 'approved' : 'pending') : 'none';
+  const incentiveStatus = incentiveAmount > 0 ? 'approved' : 'none';
 
   // 3. Insert via service role so we keep the workers/shift_claims write surface
   //    behind a single trusted entry point.
@@ -108,48 +106,6 @@ export async function POST(req: Request) {
 
   if (insErr || !shift) {
     return NextResponse.json({ error: 'Could not create the request.' }, { status: 500 });
-  }
-
-  // Pending incentive: no worker broadcast — instead text every admin who has
-  // a phone on file so the request doesn't sit unnoticed. Awaited for the same
-  // Vercel-suspension reason as the worker broadcast below.
-  if (incentiveStatus === 'pending') {
-    try {
-      const { data: admins } = await svc
-        .from('managers')
-        .select('worker:workers(id, phone)')
-        .eq('is_admin', true)
-        .not('worker_id', 'is', null);
-
-      const recipients = (admins ?? [])
-        .map((a) => one(a.worker))
-        .filter((w): w is { id: string; phone: string } => Boolean(w?.phone));
-
-      if (recipients.length > 0) {
-        const mgrStoreName = one(manager.store)?.name;
-        // Same tap-to-reply sms: links the worker alerts use — one tap plus
-        // send, no typing, no website round-trip.
-        const from = getTwilioFromNumber();
-        const message =
-          `[ShiftAlert] Approval needed: ${manager.name} (${mgrStoreName ?? 'unknown store'}) ` +
-          `is offering +$${incentiveAmount}/hr for a ${ROLE_LABELS[shift.role as keyof typeof ROLE_LABELS]} on ` +
-          `${formatDate(shift.shift_date)}, ${formatTime(shift.start_time)} – ${formatTime(shift.end_time)} ` +
-          `(${shift.headcount_needed} worker${shift.headcount_needed === 1 ? '' : 's'}). ` +
-          `Tap to approve with bonus: sms:${from}?&body=APPROVE%20${shift.code} ` +
-          `or send at regular pay: sms:${from}?&body=DENY%20${shift.code}`;
-
-        await sendSms(
-          shift.id,
-          'incentive_approval',
-          message,
-          recipients.map((w) => ({ workerId: w.id, phone: w.phone })),
-        );
-      }
-    } catch (e) {
-      console.error('[shifts] incentive approval sms failed:', e);
-    }
-
-    return NextResponse.json({ id: shift.id, pending_approval: true });
   }
 
   // 4. Broadcast before responding. This MUST be awaited: on Vercel the

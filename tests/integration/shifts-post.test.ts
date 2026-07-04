@@ -116,35 +116,23 @@ describe('POST /api/shifts', () => {
     expect(mocks.sendSms).not.toHaveBeenCalled();
   });
 
-  it("a manager's incentive shift is held for approval: no broadcast, admins texted", async () => {
+  it("a manager's incentive shift broadcasts immediately with the bonus (trust model)", async () => {
     mocks.createClient.mockReturnValue(authClientFor(manager({ is_admin: false })));
     mocks.createServiceClient.mockReturnValue(
-      createSupabaseMock([
-        { table: 'shift_requests', result: { data: INSERTED_SHIFT } },
-        {
-          table: 'managers', // admins-with-phones lookup
-          result: { data: [{ worker: { id: 'w-adm', phone: '+19130000001' } }] },
-        },
-      ]),
+      createSupabaseMock([{ table: 'shift_requests', result: { data: INSERTED_SHIFT } }]),
     );
 
     const res = await POST(shiftRequest(validBody({ incentive_amount: 2 })));
     const body = await res.json();
 
-    expect(body).toEqual({ id: 'shift-1', pending_approval: true });
-    expect(mocks.broadcastShift).not.toHaveBeenCalled();
-
-    expect(mocks.sendSms).toHaveBeenCalledOnce();
-    const [shiftId, kind, message, recipients] = mocks.sendSms.mock.calls[0] as unknown[];
-    expect(shiftId).toBe('shift-1');
-    expect(kind).toBe('incentive_approval');
-    expect(message).toContain('+$2/hr');
-    expect(message).toContain('APPROVE%2042'); // tap-to-reply link with the shift code
-    expect(message).toContain('DENY%2042');
-    expect(recipients).toEqual([{ workerId: 'w-adm', phone: '+19130000001' }]);
+    expect(body).toEqual({ id: 'shift-1' });
+    expect(mocks.broadcastShift).toHaveBeenCalledWith(
+      expect.objectContaining({ shiftId: 'shift-1', incentiveAmount: 2 }),
+    );
+    expect(mocks.sendSms).not.toHaveBeenCalled();
   });
 
-  it("an admin's incentive shift auto-approves and broadcasts with the bonus", async () => {
+  it("an admin's incentive shift broadcasts with the bonus too", async () => {
     mocks.createClient.mockReturnValue(authClientFor(manager({ is_admin: true })));
     mocks.createServiceClient.mockReturnValue(
       createSupabaseMock([{ table: 'shift_requests', result: { data: INSERTED_SHIFT } }]),

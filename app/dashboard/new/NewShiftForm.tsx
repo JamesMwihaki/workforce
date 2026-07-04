@@ -202,8 +202,8 @@ export default function NewShiftForm() {
         </div>
         {incentive > 0 && (
           <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            Extra pay needs the owner&apos;s approval — workers won&apos;t be texted
-            until it&apos;s approved.
+            Workers will see &quot;+${incentive}/hr on top of regular pay&quot; in
+            their text.
           </p>
         )}
       </Field>
@@ -217,11 +217,7 @@ export default function NewShiftForm() {
         disabled={submitting || !isValidEnd(startTime, endTime)}
         className="w-full rounded-md bg-black px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
       >
-        {submitting
-          ? 'Sending…'
-          : incentive > 0
-            ? 'Submit for approval'
-            : 'Send to neighbouring stores'}
+        {submitting ? 'Sending…' : 'Send to neighbouring stores'}
       </button>
     </form>
   );
