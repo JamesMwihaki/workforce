@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/server';
+import { one } from '@/lib/db';
 
 // Shape shared by the request-detail page, the /api/shifts/[id] route, and
 // the RequestLive client component.
@@ -34,13 +35,10 @@ export async function fetchClaimDetails(shiftId: string): Promise<ClaimDetail[]>
 
   if (error) throw new Error(error.message);
 
-  // Supabase nested selects sometimes hand back arrays for to-one joins;
-  // collapse them so downstream code sees a stable shape.
   const claims = (data ?? []).map((r) => {
-    const rawWorker = Array.isArray(r.worker) ? r.worker[0] : r.worker;
+    const rawWorker = one(r.worker);
     if (!rawWorker) return { ...r, worker: null };
-    const store = Array.isArray(rawWorker.store) ? rawWorker.store[0] : rawWorker.store;
-    return { ...r, worker: { ...rawWorker, store: store ?? null, managers: [] } };
+    return { ...r, worker: { ...rawWorker, store: one(rawWorker.store), managers: [] } };
   }) as ClaimDetail[];
 
   const storeIds = Array.from(

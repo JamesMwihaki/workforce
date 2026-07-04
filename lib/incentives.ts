@@ -1,7 +1,9 @@
 export type IncentiveStatus = 'none' | 'pending' | 'approved' | 'declined';
 
 // Duration of a shift in hours. An end of "00:00" means a midnight close
-// (same convention as the shift-creation validation).
+// (same convention as the shift-creation validation). Also the canonical
+// hours helper for the weekly-cap math in lib/schedule.ts — this module is
+// client-safe, schedule.ts is not.
 export function shiftHours(startTime: string, endTime: string): number {
   const toMin = (t: string) => {
     const [h, m] = t.split(':').map(Number);

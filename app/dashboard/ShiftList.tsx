@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { ROLE_LABELS, type Role } from '@/lib/roles';
 import { formatDate, formatTime } from '@/lib/format';
+import type { IncentiveStatus } from '@/lib/incentives';
 
 type ShiftRow = {
   id:                  string;
@@ -16,7 +17,7 @@ type ShiftRow = {
   status:              'open' | 'filled' | 'cancelled';
   created_at:          string;
   incentive_amount:    number;
-  incentive_status:    'none' | 'pending' | 'approved' | 'declined';
+  incentive_status:    IncentiveStatus;
 };
 
 type Filter = 'all' | 'waiting' | 'filled' | 'today';

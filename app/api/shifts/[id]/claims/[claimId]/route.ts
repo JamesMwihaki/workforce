@@ -3,6 +3,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { sendSms } from '@/lib/sms';
 import { formatDate, formatTime } from '@/lib/format';
 import { ROLE_LABELS, type Role } from '@/lib/roles';
+import { one } from '@/lib/db';
 
 // DELETE /api/shifts/[id]/claims/[claimId] — manager removes a worker from a
 // shift. The cancel_claim() function frees the seat atomically (reopening a
@@ -58,9 +59,9 @@ export async function DELETE(
   // Only a confirmed worker was told they're working — they're the only one
   // who needs to hear otherwise. If the whole shift is already cancelled they
   // were texted by the shift-cancel path; don't text twice.
-  const worker = Array.isArray(claim.worker) ? claim.worker[0] : claim.worker;
+  const worker = one(claim.worker);
   if (wasConfirmed && shift.status !== 'cancelled' && worker?.phone) {
-    const store = Array.isArray(shift.store) ? shift.store[0] : shift.store;
+    const store = one(shift.store);
     const message =
       `[ShiftAlert] Update: you've been taken off the ${ROLE_LABELS[shift.role as Role]} ` +
       `shift on ${formatDate(shift.shift_date)} from ${formatTime(shift.start_time)} to ` +

@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { incentiveOwed } from '@/lib/incentives';
+import { one } from '@/lib/db';
 import IncentivesPanel, {
   type PendingShift,
   type LiveShift,
@@ -17,10 +18,6 @@ type ShiftJoin = {
   incentive_amount: number;
   store:            { name: string } | { name: string }[] | null;
 };
-
-function one<T>(v: T | T[] | null): T | null {
-  return Array.isArray(v) ? (v[0] ?? null) : v;
-}
 
 export default async function AdminIncentivesPage() {
   // Layout already enforced requireAdmin.

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireManager } from '@/lib/auth';
 import type { Role } from '@/lib/roles';
+import type { IncentiveStatus } from '@/lib/incentives';
 import ShiftList from './ShiftList';
 
 type ShiftRow = {
@@ -15,7 +16,7 @@ type ShiftRow = {
   status:              'open' | 'filled' | 'cancelled';
   created_at:          string;
   incentive_amount:    number;
-  incentive_status:    'none' | 'pending' | 'approved' | 'declined';
+  incentive_status:    IncentiveStatus;
 };
 
 export const dynamic = 'force-dynamic';

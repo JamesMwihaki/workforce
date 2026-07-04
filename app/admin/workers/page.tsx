@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/server';
+import { one } from '@/lib/db';
 import WorkersPanel, { type WorkerRow } from './WorkersPanel';
 
 export const dynamic = 'force-dynamic';
@@ -18,7 +19,7 @@ export default async function AdminWorkersPage() {
   const managerWorkerIds = new Set((managerLinks ?? []).map((m) => m.worker_id));
 
   const rows: WorkerRow[] = (workers ?? []).map((w) => {
-    const store = Array.isArray(w.store) ? (w.store[0] ?? null) : w.store;
+    const store = one(w.store);
     return {
       id:          w.id,
       employee_id: w.employee_id,

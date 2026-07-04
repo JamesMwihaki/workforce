@@ -1,5 +1,6 @@
 import { requireAdmin } from '@/lib/auth';
 import { createServiceClient } from '@/lib/supabase/server';
+import { one } from '@/lib/db';
 import ManagersPanel, { type ManagerRow, type StoreOption } from './ManagersPanel';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +18,7 @@ export default async function AdminManagersPage() {
   ]);
 
   const rows: ManagerRow[] = (managers ?? []).map((m) => {
-    const store = Array.isArray(m.store) ? (m.store[0] ?? null) : m.store;
+    const store = one(m.store);
     return {
       id:         m.id,
       name:       m.name,

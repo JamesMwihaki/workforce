@@ -4,6 +4,7 @@ import { fetchClaimDetails } from '@/lib/claims';
 import { sendSms, countAlerted } from '@/lib/sms';
 import { formatDate, formatTime } from '@/lib/format';
 import { ROLE_LABELS, type Role } from '@/lib/roles';
+import { one } from '@/lib/db';
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const supabase = createClient();
@@ -88,13 +89,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     .eq('status', 'confirmed');
 
   const recipients = (confirmed ?? []).flatMap((c) => {
-    const worker = Array.isArray(c.worker) ? c.worker[0] : c.worker;
+    const worker = one(c.worker);
     return worker?.phone ? [{ workerId: c.worker_id, phone: worker.phone }] : [];
   });
 
   let notified = 0;
   if (recipients.length > 0) {
-    const store = Array.isArray(shift.store) ? shift.store[0] : shift.store;
+    const store = one(shift.store);
     const message =
       `[ShiftAlert] CANCELLED: the ${ROLE_LABELS[shift.role as Role]} shift on ` +
       `${formatDate(shift.shift_date)} from ${formatTime(shift.start_time)} to ` +

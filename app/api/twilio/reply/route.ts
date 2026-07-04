@@ -115,11 +115,9 @@ export async function POST(req: Request) {
   }
 
   // 7. Identify which shift this is for. A bare YES is never enough — the
-  //    reply must carry the shift number from the alert (or the legacy UUID
-  //    from alerts sent before shift codes), so nobody gets booked into a
-  //    shift they never saw.
-  const hasCode = CODE_RE.test(bodyText) || UUID_RE.test(bodyText);
-  if (!hasCode) {
+  //    reply must carry the shift number from the alert, so nobody gets
+  //    booked into a shift they never saw.
+  if (!CODE_RE.test(bodyText)) {
     return twiml(
       'Please include the shift number from the alert, e.g. "YES 12" — ' +
         'or just tap the link in the alert message.',
@@ -222,7 +220,6 @@ export async function POST(req: Request) {
 
 // ─── helpers ──────────────────────────────────────────────────────────────
 
-const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 // "YES 42", "yes #42", "YES42" — the short code broadcast in every alert.
 const CODE_RE = /\byes\s*#?\s*(\d{1,9})\b/i;
 // "APPROVE 42" / "DENY 42" — admin decision on an incentive request.
@@ -288,31 +285,21 @@ async function resolveShiftId(
   bodyText: string,
   worker: { id: string; store_id: string; roles: Role[] },
 ): Promise<string | null> {
-  // Preferred: the short shift code from the alert. Scope the lookup to
-  // shifts this worker could have been alerted about (matching role; own-store
-  // shifts are allowed and get the schedule/40-hour checks in the caller) so a
-  // guessed code can't book them somewhere invalid.
+  // The short shift code from the alert. Scope the lookup to shifts this
+  // worker could have been alerted about (matching role; own-store shifts are
+  // allowed and get the schedule/40-hour checks in the caller) so a guessed
+  // code can't book them somewhere invalid.
   // No status filter — claim_shift decides between confirm/waitlist/closed.
   const codeMatch = bodyText.match(CODE_RE);
-  if (codeMatch) {
-    const { data } = await supabase
-      .from('shift_requests')
-      .select('id')
-      .eq('code', Number(codeMatch[1]))
-      .in('role', worker.roles)
-      .maybeSingle();
-    // A code was given; if it doesn't resolve, don't fall through and guess
-    // a different shift.
-    return data?.id ?? null;
-  }
+  if (!codeMatch) return null; // caller already rejected code-less replies
 
-  // Legacy: alerts sent before shift codes embedded the raw UUID.
-  const idMatch = bodyText.match(UUID_RE);
-  if (idMatch) return idMatch[0];
-
-  // No code, no UUID — the caller already rejects bare YES before we get
-  // here, so this is unreachable in practice.
-  return null;
+  const { data } = await supabase
+    .from('shift_requests')
+    .select('id')
+    .eq('code', Number(codeMatch[1]))
+    .in('role', worker.roles)
+    .maybeSingle();
+  return data?.id ?? null;
 }
 
 async function getStoreName(

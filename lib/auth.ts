@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { one } from '@/lib/db';
 
 export type Manager = {
   id:       string;
@@ -29,9 +30,7 @@ async function resolveManager(): Promise<Manager | 'no_session' | 'no_manager'> 
 
   if (error || !data) return 'no_manager';
 
-  // Supabase typings return `store` as an array for nested selects on some
-  // versions; normalise to a single object.
-  const store = Array.isArray(data.store) ? (data.store[0] ?? null) : data.store;
+  const store = one(data.store);
 
   return {
     id:       data.id,

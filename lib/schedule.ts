@@ -1,4 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server';
+import { one } from '@/lib/db';
+import { shiftHours } from '@/lib/incentives';
 
 // Weekly-hours math for the same-store pickup rules. The work week runs
 // Monday–Sunday; a shift's hours count against the week containing its date.
@@ -9,21 +11,12 @@ export type ScheduleEntry = {
   end_time:   string;
 };
 
-// Duration in hours of a shift. end '00:00' means a midnight close.
-export function shiftHours(start: string, end: string): number {
-  const [sh, sm] = start.split(':').map(Number);
-  const [eh, em] = end.split(':').map(Number);
-  const startMin = sh * 60 + sm;
-  const endMin = eh === 0 && em === 0 ? 24 * 60 : eh * 60 + em;
-  return Math.max(0, (endMin - startMin) / 60);
-}
-
-export function weeklyScheduleHours(entries: ScheduleEntry[]): number {
+function weeklyScheduleHours(entries: ScheduleEntry[]): number {
   return entries.reduce((sum, e) => sum + shiftHours(e.start_time, e.end_time), 0);
 }
 
 // Monday–Sunday bounds (ISO dates) of the week containing dateIso.
-export function weekBounds(dateIso: string): { monday: string; sunday: string } {
+function weekBounds(dateIso: string): { monday: string; sunday: string } {
   const [y, m, d] = dateIso.split('-').map(Number);
   const date = new Date(Date.UTC(y, m - 1, d));
   const dow = date.getUTCDay(); // 0 = Sunday
@@ -36,7 +29,7 @@ export function weekBounds(dateIso: string): { monday: string; sunday: string } 
   return { monday: iso(monday), sunday: iso(sunday) };
 }
 
-export function weekdayOf(dateIso: string): number {
+function weekdayOf(dateIso: string): number {
   const [y, m, d] = dateIso.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 }
@@ -82,7 +75,7 @@ export async function checkSameStorePickup(
 
 // Confirmed pickup hours per worker for the Mon–Sun week containing dateIso,
 // excluding excludeShiftId (the shift being claimed/broadcast).
-export async function claimedHoursForWeek(
+async function claimedHoursForWeek(
   svc: ReturnType<typeof createServiceClient>,
   workerIds: string[],
   dateIso: string,
@@ -107,7 +100,7 @@ export async function claimedHoursForWeek(
   }
 
   for (const row of data ?? []) {
-    const shift = Array.isArray(row.shift_requests) ? row.shift_requests[0] : row.shift_requests;
+    const shift = one(row.shift_requests);
     if (!shift || shift.id === excludeShiftId) continue;
     hours.set(
       row.worker_id,

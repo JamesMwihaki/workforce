@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { broadcastShift } from '@/lib/broadcast';
+import { one } from '@/lib/db';
 import type { Role } from '@/lib/roles';
 
 export type DecideOutcome =
@@ -57,8 +58,7 @@ export async function decideIncentive(opts: {
     return { ok: false, reason: 'db_error' };
   }
 
-  const store = Array.isArray(shift.store) ? shift.store[0] : shift.store;
-  const storeName = (store as { name?: string } | null)?.name ?? 'a neighbouring store';
+  const storeName = one(shift.store)?.name ?? 'a neighbouring store';
 
   try {
     await broadcastShift({

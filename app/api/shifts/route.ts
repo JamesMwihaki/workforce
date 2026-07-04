@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { one } from '@/lib/db';
 import { ROLES, ROLE_LABELS } from '@/lib/roles';
 import { broadcastShift } from '@/lib/broadcast';
 import { sendSms } from '@/lib/sms';
@@ -121,13 +122,11 @@ export async function POST(req: Request) {
         .not('worker_id', 'is', null);
 
       const recipients = (admins ?? [])
-        .map((a) => (Array.isArray(a.worker) ? a.worker[0] : a.worker))
+        .map((a) => one(a.worker))
         .filter((w): w is { id: string; phone: string } => Boolean(w?.phone));
 
       if (recipients.length > 0) {
-        const mgrStoreName = Array.isArray(manager.store)
-          ? manager.store[0]?.name
-          : (manager.store as { name?: string } | null)?.name;
+        const mgrStoreName = one(manager.store)?.name;
         // Same tap-to-reply sms: links the worker alerts use — one tap plus
         // send, no typing, no website round-trip.
         const from = getTwilioFromNumber();
@@ -158,9 +157,7 @@ export async function POST(req: Request) {
   //    fire-and-forget broadcast stalls until some later request thaws the
   //    instance (workers got their alert only after one of them texted in).
   //    Errors are still non-fatal — the shift exists; the manager can resend.
-  const storeName = Array.isArray(manager.store)
-    ? manager.store[0]?.name
-    : (manager.store as { name?: string } | null)?.name;
+  const storeName = one(manager.store)?.name;
 
   try {
     await broadcastShift({
@@ -181,21 +178,3 @@ export async function POST(req: Request) {
   return NextResponse.json({ id: shift.id });
 }
 
-export async function GET() {
-  // List shifts for the current manager's store. RLS handles the filtering.
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
-
-  const { data, error } = await supabase
-    .from('shift_requests')
-    .select(
-      'id, role, shift_date, start_time, end_time, headcount_needed, headcount_confirmed, status, created_at',
-    )
-    .order('created_at', { ascending: false });
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ shifts: data ?? [] });
-}

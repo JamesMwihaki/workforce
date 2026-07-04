@@ -5,6 +5,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { ROLE_LABELS, type Role } from '@/lib/roles';
 import { formatDate, formatTime } from '@/lib/format';
 import type { ScheduleEntry } from '@/lib/schedule';
+import { one } from '@/lib/db';
 import ScheduleForm from './ScheduleForm';
 
 export const dynamic = 'force-dynamic';
@@ -43,9 +44,9 @@ export default async function WorkerPortalPage() {
   ]);
 
   const upcoming: UpcomingShift[] = (claims ?? []).flatMap((c) => {
-    const shift = Array.isArray(c.shift_requests) ? c.shift_requests[0] : c.shift_requests;
+    const shift = one(c.shift_requests);
     if (!shift) return [];
-    const store = Array.isArray(shift.store) ? shift.store[0] : shift.store;
+    const store = one(shift.store);
     return [
       {
         id:         shift.id,

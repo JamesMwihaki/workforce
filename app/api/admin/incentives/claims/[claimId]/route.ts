@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getAdmin } from '@/lib/auth';
 import { createServiceClient } from '@/lib/supabase/server';
+import { one } from '@/lib/db';
 
 const Params = z.object({ claimId: z.uuid() });
 const Body = z.object({ paid: z.boolean() });
@@ -40,8 +41,8 @@ export async function PATCH(req: Request, { params }: { params: { claimId: strin
   if (!claim) {
     return NextResponse.json({ error: 'Claim not found.' }, { status: 404 });
   }
-  const shift = Array.isArray(claim.shift) ? claim.shift[0] : claim.shift;
-  if ((shift as { incentive_status?: string } | null)?.incentive_status !== 'approved') {
+  const shift = one(claim.shift);
+  if (shift?.incentive_status !== 'approved') {
     return NextResponse.json(
       { error: 'This claim has no approved incentive to settle.' },
       { status: 409 },

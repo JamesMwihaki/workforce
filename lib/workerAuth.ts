@@ -1,6 +1,7 @@
 import { createHmac, createHash, randomInt, timingSafeEqual } from 'crypto';
 import { cookies } from 'next/headers';
 import { createServiceClient } from '@/lib/supabase/server';
+import { one } from '@/lib/db';
 
 // Worker portal auth: SMS one-time codes + an HMAC-signed session cookie.
 // Workers have no Supabase Auth accounts — their verified phone number is
@@ -165,6 +166,5 @@ export async function getPortalWorker(): Promise<PortalWorker | null> {
     .maybeSingle();
 
   if (!data) return null;
-  const store = Array.isArray(data.store) ? (data.store[0] ?? null) : data.store;
-  return { ...data, store } as PortalWorker;
+  return { ...data, store: one(data.store) } as PortalWorker;
 }

@@ -6,6 +6,7 @@ import { fetchClaimDetails } from '@/lib/claims';
 import { countAlerted } from '@/lib/sms';
 import { ROLE_LABELS, type Role } from '@/lib/roles';
 import { formatDate, formatTime } from '@/lib/format';
+import type { IncentiveStatus } from '@/lib/incentives';
 import RequestLive from './RequestLive';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +22,7 @@ type Shift = {
   headcount_confirmed: number;
   status:              'open' | 'filled' | 'cancelled';
   incentive_amount:    number;
-  incentive_status:    'none' | 'pending' | 'approved' | 'declined';
+  incentive_status:    IncentiveStatus;
 };
 
 export default async function RequestDetail({
