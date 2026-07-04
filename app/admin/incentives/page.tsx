@@ -1,6 +1,10 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { incentiveOwed } from '@/lib/incentives';
-import IncentivesPanel, { type PendingShift, type LedgerRow } from './IncentivesPanel';
+import IncentivesPanel, {
+  type PendingShift,
+  type LiveShift,
+  type LedgerRow,
+} from './IncentivesPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +28,7 @@ export default async function AdminIncentivesPage() {
 
   const todayUtc = new Date().toISOString().slice(0, 10);
 
-  const [{ data: pending }, { data: claims }] = await Promise.all([
+  const [{ data: pending }, { data: live }, { data: claims }] = await Promise.all([
     svc
       .from('shift_requests')
       .select(
@@ -33,6 +37,15 @@ export default async function AdminIncentivesPage() {
       .eq('incentive_status', 'pending')
       .eq('status', 'open')
       .order('created_at', { ascending: true }),
+    svc
+      .from('shift_requests')
+      .select(
+        'id, role, shift_date, start_time, end_time, headcount_needed, headcount_confirmed, incentive_amount, store:stores(name), creator:managers!shift_requests_created_by_fkey(name)',
+      )
+      .eq('incentive_status', 'approved')
+      .neq('status', 'cancelled')
+      .gte('shift_date', todayUtc)
+      .order('shift_date', { ascending: true }),
     svc
       .from('shift_claims')
       .select(
@@ -55,6 +68,19 @@ export default async function AdminIncentivesPage() {
     store_name:       one(s.store)?.name ?? '—',
     creator_name:     one(s.creator)?.name ?? '—',
     expired:          s.shift_date < todayUtc,
+  }));
+
+  const liveRows: LiveShift[] = (live ?? []).map((s) => ({
+    id:                  s.id,
+    role:                s.role,
+    shift_date:          s.shift_date,
+    start_time:          s.start_time,
+    end_time:            s.end_time,
+    headcount_needed:    s.headcount_needed,
+    headcount_confirmed: s.headcount_confirmed,
+    incentive_amount:    Number(s.incentive_amount),
+    store_name:          one(s.store)?.name ?? '—',
+    creator_name:        one(s.creator)?.name ?? '—',
   }));
 
   // "Work done" = the shift's date has passed. Today's shifts stay in the
@@ -83,5 +109,5 @@ export default async function AdminIncentivesPage() {
     ];
   });
 
-  return <IncentivesPanel pending={pendingRows} ledger={ledgerRows} />;
+  return <IncentivesPanel pending={pendingRows} live={liveRows} ledger={ledgerRows} />;
 }

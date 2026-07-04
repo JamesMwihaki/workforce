@@ -19,6 +19,19 @@ export type PendingShift = {
   expired:          boolean;
 };
 
+export type LiveShift = {
+  id:                  string;
+  role:                string;
+  shift_date:          string;
+  start_time:          string;
+  end_time:            string;
+  headcount_needed:    number;
+  headcount_confirmed: number;
+  incentive_amount:    number;
+  store_name:          string;
+  creator_name:        string;
+};
+
 export type LedgerRow = {
   claim_id:    string;
   worker_name: string;
@@ -40,9 +53,11 @@ function roleLabel(role: string): string {
 
 export default function IncentivesPanel({
   pending,
+  live,
   ledger,
 }: {
   pending: PendingShift[];
+  live: LiveShift[];
   ledger: LedgerRow[];
 }) {
   const router = useRouter();
@@ -187,6 +202,43 @@ export default function IncentivesPanel({
                     Send without bonus
                   </button>
                 </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* ── Approved & live (upcoming, seats still filling) ───────────────── */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+          Approved &amp; live ({live.length})
+        </h2>
+        {live.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-500">
+            No upcoming incentivised shifts.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {live.map((s) => (
+              <li
+                key={s.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4"
+              >
+                <div>
+                  <p className="font-medium text-gray-900">
+                    {roleLabel(s.role)} · {formatDate(s.shift_date)} ·{' '}
+                    {formatTime(s.start_time)} – {formatTime(s.end_time)}
+                    <span className="ml-1.5 font-semibold text-amber-700">
+                      +{formatMoney(s.incentive_amount)}/hr
+                    </span>
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {s.store_name} · requested by {s.creator_name}
+                  </p>
+                </div>
+                <span className="text-sm text-gray-600">
+                  {s.headcount_confirmed} / {s.headcount_needed} confirmed
+                </span>
               </li>
             ))}
           </ul>
