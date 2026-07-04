@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 
 export type ManagerRow = {
   id:         string;
@@ -34,6 +34,8 @@ export default function ManagersPanel({
   // ── Add form state ────────────────────────────────────────────────────────
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [resetId, setResetId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   async function callApi(path: string, init: RequestInit): Promise<boolean> {
     setError(null);
@@ -98,24 +100,23 @@ export default function ManagersPanel({
     setBusyId(null);
   }
 
-  async function onResetPassword(m: ManagerRow) {
-    const password = window.prompt(
-      `New temporary password for ${m.name} (min 8 characters):`,
-    );
-    if (!password) return;
+  async function onResetPassword(e: React.FormEvent<HTMLFormElement>, m: ManagerRow) {
+    e.preventDefault();
+    const password = String(new FormData(e.currentTarget).get('password') ?? '');
     setBusyId(m.id);
     const ok = await callApi(`/api/admin/managers/${m.id}`, {
       method: 'PATCH',
       body: JSON.stringify({ password }),
     });
     setBusyId(null);
-    if (ok) setNotice(`Password updated for ${m.name}.`);
+    if (ok) {
+      setResetId(null);
+      setNotice(`Password updated for ${m.name}.`);
+    }
   }
 
   async function onDelete(m: ManagerRow) {
-    if (!window.confirm(`Remove ${m.name} (${m.email})? They will no longer be able to sign in.`)) {
-      return;
-    }
+    setConfirmDeleteId(null);
     setBusyId(m.id);
     await callApi(`/api/admin/managers/${m.id}`, { method: 'DELETE' });
     setBusyId(null);
@@ -214,7 +215,8 @@ export default function ManagersPanel({
               const isSelf = m.id === selfId;
               const busy = busyId === m.id;
               return (
-                <tr key={m.id} className="border-b border-gray-100 last:border-0">
+                <Fragment key={m.id}>
+                <tr className="border-b border-gray-100 last:border-0">
                   <td className="px-4 py-3">
                     <div className="font-medium text-gray-900">
                       {m.name}
@@ -246,28 +248,88 @@ export default function ManagersPanel({
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2 whitespace-nowrap">
-                      <RowAction
-                        onClick={() => onToggleAdmin(m)}
-                        disabled={busy || isSelf}
-                        title={isSelf ? "You can't change your own admin access." : undefined}
-                      >
-                        {m.is_admin ? 'Revoke admin' : 'Make admin'}
-                      </RowAction>
-                      <RowAction onClick={() => onResetPassword(m)} disabled={busy}>
-                        Reset password
-                      </RowAction>
-                      <RowAction
-                        onClick={() => onDelete(m)}
-                        disabled={busy || isSelf}
-                        title={isSelf ? "You can't remove yourself." : undefined}
-                        danger
-                      >
-                        Remove
-                      </RowAction>
-                    </div>
+                    {confirmDeleteId === m.id ? (
+                      <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+                        <span className="text-xs text-red-700">
+                          Remove {m.name}? They can no longer sign in.
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => onDelete(m)}
+                          disabled={busy}
+                          className="rounded-md bg-red-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-40"
+                        >
+                          Yes, remove
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteId(null)}
+                          className="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs hover:bg-gray-50"
+                        >
+                          Keep
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex justify-end gap-2 whitespace-nowrap">
+                        <RowAction
+                          onClick={() => onToggleAdmin(m)}
+                          disabled={busy || isSelf}
+                          title={isSelf ? "You can't change your own admin access." : undefined}
+                        >
+                          {m.is_admin ? 'Revoke admin' : 'Make admin'}
+                        </RowAction>
+                        <RowAction
+                          onClick={() => setResetId((id) => (id === m.id ? null : m.id))}
+                          disabled={busy}
+                        >
+                          {resetId === m.id ? 'Cancel' : 'Reset password'}
+                        </RowAction>
+                        <RowAction
+                          onClick={() => setConfirmDeleteId(m.id)}
+                          disabled={busy || isSelf}
+                          title={isSelf ? "You can't remove yourself." : undefined}
+                          danger
+                        >
+                          Remove
+                        </RowAction>
+                      </div>
+                    )}
                   </td>
                 </tr>
+                {resetId === m.id && (
+                  <tr className="border-b border-gray-100 bg-gray-50 last:border-0">
+                    <td colSpan={4} className="px-4 py-4">
+                      <form
+                        onSubmit={(e) => onResetPassword(e, m)}
+                        className="flex flex-wrap items-end gap-3"
+                      >
+                        <label className="block flex-1 space-y-1" style={{ minWidth: '14rem' }}>
+                          <span className="text-xs font-semibold text-gray-900">
+                            New temporary password for {m.name}
+                          </span>
+                          <input
+                            name="password"
+                            type="text"
+                            required
+                            minLength={8}
+                            autoFocus
+                            placeholder="Min 8 characters"
+                            autoComplete="off"
+                            className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:border-black focus:outline-none focus:ring-2 focus:ring-black/20"
+                          />
+                        </label>
+                        <button
+                          type="submit"
+                          disabled={busy}
+                          className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                        >
+                          {busy ? 'Updating…' : 'Update password'}
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               );
             })}
             {managers.length === 0 && (

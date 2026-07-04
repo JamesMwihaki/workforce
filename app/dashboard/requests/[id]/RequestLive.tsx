@@ -34,7 +34,9 @@ export default function RequestLive({
   const [claims, setClaims] = useState<Claim[]>(initialClaims);
   const [notified, setNotified] = useState(initialNotified);
   const [cancelling, setCancelling] = useState(false);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Re-fetch the canonical view from /api/shifts/[id] — simpler than
@@ -81,7 +83,7 @@ export default function RequestLive({
   }, [shiftId, refetch]);
 
   async function onCancel() {
-    if (!confirm('Cancel this shift request? Confirmed workers will get a text telling them not to come in.')) return;
+    setConfirmingCancel(false);
     setCancelling(true);
     setError(null);
     try {
@@ -104,14 +106,7 @@ export default function RequestLive({
   }
 
   async function onRemove(claim: Claim) {
-    const name = claim.worker?.name ?? 'this worker';
-    if (
-      !confirm(
-        `Take ${name} off this shift? They'll get a text telling them not to come in, and their seat reopens.`,
-      )
-    ) {
-      return;
-    }
+    setConfirmRemoveId(null);
     setRemovingId(claim.id);
     setError(null);
     try {
@@ -149,14 +144,35 @@ export default function RequestLive({
           : `${notified} worker${notified === 1 ? '' : 's'} alerted by text`}
       </p>
 
-      {shift.status === 'open' && (
+      {shift.status === 'open' && !confirmingCancel && (
         <button
-          onClick={onCancel}
+          onClick={() => setConfirmingCancel(true)}
           disabled={cancelling}
           className="rounded-md border border-gray-300 px-3 py-1.5 text-xs hover:bg-gray-50 disabled:opacity-50"
         >
           {cancelling ? 'Cancelling…' : 'Cancel request'}
         </button>
+      )}
+      {shift.status === 'open' && confirmingCancel && (
+        <div className="rounded-md border border-red-200 bg-red-50 p-2 text-right">
+          <p className="mb-2 text-xs text-red-800">
+            Cancel this request? Confirmed workers get a text telling them not to come in.
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={onCancel}
+              className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
+            >
+              Yes, cancel shift
+            </button>
+            <button
+              onClick={() => setConfirmingCancel(false)}
+              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs hover:bg-gray-50"
+            >
+              Keep shift
+            </button>
+          </div>
+        </div>
       )}
 
       {error && (
@@ -170,6 +186,8 @@ export default function RequestLive({
           emptyHint="No confirmations yet."
           onRemove={shift.status !== 'cancelled' ? onRemove : undefined}
           removingId={removingId}
+          confirmRemoveId={confirmRemoveId}
+          onArmRemove={setConfirmRemoveId}
         />
         {waitlist.length > 0 && (
           <ClaimsList title="Waitlisted" rows={waitlist} emptyHint="" />
@@ -185,12 +203,16 @@ function ClaimsList({
   emptyHint,
   onRemove,
   removingId,
+  confirmRemoveId,
+  onArmRemove,
 }: {
   title:      string;
   rows:       Claim[];
   emptyHint:  string;
   onRemove?:  (claim: Claim) => void;
   removingId?: string | null;
+  confirmRemoveId?: string | null;
+  onArmRemove?: (id: string | null) => void;
 }) {
   return (
     <div className="mt-3 w-full text-left">
@@ -207,14 +229,31 @@ function ClaimsList({
                   <span className="text-xs text-gray-500">
                     {c.worker?.store?.name ?? '—'}
                   </span>
-                  {onRemove && (
+                  {onRemove && confirmRemoveId !== c.id && (
                     <button
-                      onClick={() => onRemove(c)}
+                      onClick={() => onArmRemove?.(c.id)}
                       disabled={removingId === c.id}
                       className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
                     >
                       {removingId === c.id ? 'Removing…' : 'Remove'}
                     </button>
+                  )}
+                  {onRemove && confirmRemoveId === c.id && (
+                    <span className="flex items-center gap-1.5">
+                      <span className="text-xs text-red-700">Text them not to come in?</span>
+                      <button
+                        onClick={() => onRemove(c)}
+                        className="rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
+                      >
+                        Yes, remove
+                      </button>
+                      <button
+                        onClick={() => onArmRemove?.(null)}
+                        className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs hover:bg-gray-50"
+                      >
+                        Keep
+                      </button>
+                    </span>
                   )}
                 </span>
               </div>
