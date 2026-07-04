@@ -13,41 +13,49 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="border-b border-gray-200 bg-white">
-        <div className="mx-auto flex max-w-3xl items-center gap-4 px-4 py-3 sm:px-6">
-          <Link
-            href="/dashboard"
-            className="shrink-0 font-semibold tracking-tight"
-          >
-            ShiftAlert
-          </Link>
+        <div className="mx-auto max-w-3xl px-4 sm:px-6">
+          {/* Row 1: brand + navigation */}
+          <div className="flex items-center justify-between py-3">
+            <Link
+              href="/dashboard"
+              className="shrink-0 font-semibold tracking-tight"
+            >
+              ShiftAlert
+            </Link>
 
-          <span className="hidden min-w-0 flex-1 truncate text-sm text-gray-600 sm:block">
-            {manager.store?.name ?? '—'} · {manager.name}
-          </span>
-
-          <div className="ml-auto flex shrink-0 items-center gap-4 text-sm sm:ml-0">
-            {manager.is_admin && (
+            <div className="flex items-center gap-4 text-sm">
+              {manager.is_admin && (
+                <Link
+                  href="/admin"
+                  className="text-gray-600 hover:text-gray-900 hover:underline"
+                >
+                  Admin
+                </Link>
+              )}
               <Link
-                href="/admin"
+                href="/dashboard/account"
                 className="text-gray-600 hover:text-gray-900 hover:underline"
               >
-                Admin
+                Account
               </Link>
-            )}
-            <Link
-              href="/dashboard/account"
-              className="text-gray-600 hover:text-gray-900 hover:underline"
-            >
-              Account
-            </Link>
-            <form action="/logout" method="post">
-              <button
-                type="submit"
-                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
-              >
-                Log out
-              </button>
-            </form>
+              <form action="/logout" method="post">
+                <button
+                  type="submit"
+                  className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
+                >
+                  Log out
+                </button>
+              </form>
+            </div>
+          </div>
+
+          {/* Row 2: store + signed-in context, full width on its own line */}
+          <div className="border-t border-gray-100 py-2 text-sm text-gray-600">
+            <span className="font-medium text-gray-900">
+              {manager.store?.name ?? 'No store assigned'}
+            </span>
+            <span className="text-gray-400"> · </span>
+            <span>{manager.name}</span>
           </div>
         </div>
       </header>
