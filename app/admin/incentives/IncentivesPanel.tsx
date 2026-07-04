@@ -70,6 +70,10 @@ export default function IncentivesPanel({
   // changes (Realtime), when the tab regains focus, and every 30s as a
   // fallback. Same pattern as RequestLive on the request-detail page.
   useEffect(() => {
+    // Arriving via a client-side navigation serves Next's cached copy of the
+    // page — refresh immediately so the data is never stale on landing.
+    router.refresh();
+
     const supabase = createClient();
     let debounce: ReturnType<typeof setTimeout> | null = null;
     const refresh = () => {
