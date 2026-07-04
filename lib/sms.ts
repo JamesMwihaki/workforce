@@ -1,7 +1,11 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { getTwilioClient, getTwilioFromNumber } from '@/lib/twilio';
 
-export type SmsKind = 'shift_alert' | 'shift_cancelled' | 'claim_cancelled';
+export type SmsKind =
+  | 'shift_alert'
+  | 'shift_cancelled'
+  | 'claim_cancelled'
+  | 'incentive_approval';
 
 export type SmsRecipient = {
   workerId: string | null;

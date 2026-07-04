@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
-import { ROLES } from '@/lib/roles';
+import { ROLES, ROLE_LABELS } from '@/lib/roles';
 import { broadcastShift } from '@/lib/broadcast';
+import { sendSms } from '@/lib/sms';
+import { formatDate, formatTime } from '@/lib/format';
 
 const Body = z.object({
   role:             z.enum(ROLES),
@@ -25,7 +27,7 @@ export async function POST(req: Request) {
 
   const { data: manager, error: mgrErr } = await auth
     .from('managers')
-    .select('id, store_id, is_admin, store:stores(name)')
+    .select('id, name, store_id, is_admin, store:stores(name)')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -106,8 +108,44 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Could not create the request.' }, { status: 500 });
   }
 
-  // Pending incentive: stop here — the admin's approval triggers the broadcast.
+  // Pending incentive: no worker broadcast — instead text every admin who has
+  // a phone on file so the request doesn't sit unnoticed. Awaited for the same
+  // Vercel-suspension reason as the worker broadcast below.
   if (incentiveStatus === 'pending') {
+    try {
+      const { data: admins } = await svc
+        .from('managers')
+        .select('worker:workers(id, phone)')
+        .eq('is_admin', true)
+        .not('worker_id', 'is', null);
+
+      const recipients = (admins ?? [])
+        .map((a) => (Array.isArray(a.worker) ? a.worker[0] : a.worker))
+        .filter((w): w is { id: string; phone: string } => Boolean(w?.phone));
+
+      if (recipients.length > 0) {
+        const mgrStoreName = Array.isArray(manager.store)
+          ? manager.store[0]?.name
+          : (manager.store as { name?: string } | null)?.name;
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
+        const message =
+          `[ShiftAlert] Approval needed: ${manager.name} (${mgrStoreName ?? 'unknown store'}) ` +
+          `is offering +$${incentiveAmount}/hr for a ${ROLE_LABELS[shift.role as keyof typeof ROLE_LABELS]} on ` +
+          `${formatDate(shift.shift_date)}, ${formatTime(shift.start_time)} – ${formatTime(shift.end_time)} ` +
+          `(${shift.headcount_needed} worker${shift.headcount_needed === 1 ? '' : 's'}). ` +
+          `Review: ${appUrl}/admin/incentives`;
+
+        await sendSms(
+          shift.id,
+          'incentive_approval',
+          message,
+          recipients.map((w) => ({ workerId: w.id, phone: w.phone })),
+        );
+      }
+    } catch (e) {
+      console.error('[shifts] incentive approval sms failed:', e);
+    }
+
     return NextResponse.json({ id: shift.id, pending_approval: true });
   }
 
