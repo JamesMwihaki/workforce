@@ -11,7 +11,7 @@ export default function SmsPolicyPage() {
     <main className="mx-auto max-w-2xl px-6 py-12 text-gray-900">
       <header className="mb-8">
         <h1 className="text-3xl font-semibold tracking-tight">SMS Policy &amp; Consent</h1>
-        <p className="mt-2 text-sm text-gray-700">Last updated: 2026-05-06</p>
+        <p className="mt-2 text-sm text-gray-700">Last updated: 2026-07-03</p>
       </header>
 
       <section className="space-y-4">
@@ -22,7 +22,11 @@ export default function SmsPolicyPage() {
           restaurants to coordinate same-day shift coverage. When a store is
           short-staffed, a manager posts a shift request and the system sends
           a one-time SMS to crew members at neighbouring stores who have{' '}
-          <strong>opted in</strong> to receive these alerts.
+          <strong>opted in</strong> to receive these alerts. Crew members who
+          save their regular weekly schedule may also receive alerts from
+          their <strong>own store</strong>, but only for days they are not
+          scheduled to work and only when picking up the shift would keep
+          them at or under 40 hours for the week.
         </p>
       </section>
 
@@ -58,15 +62,28 @@ export default function SmsPolicyPage() {
         <ul className="list-disc space-y-2 pl-6">
           <li>
             <strong>Shift alerts</strong> — One SMS per open shift for which
-            the user&apos;s registered role and home store match the
-            broadcast filters. Example: &ldquo;[ShiftAlert] Chipotle —
-            Shawnee needs a Line Crew on Sat May 10 from 11:00 AM to 4:00 PM.
-            Reply YES to claim this shift. Reply STOP to unsubscribe.&rdquo;
+            the user&apos;s registered role and store match the broadcast
+            filters (a neighbouring store, or the user&apos;s own store on a
+            day they are not scheduled to work). Example: &ldquo;[ShiftAlert]
+            Chipotle — Shawnee needs a Line Crew on Sat May 10 from 11:00 AM
+            to 4:00 PM. Reply &lsquo;YES 12&rsquo; to claim. Reply HELP for
+            help, STOP to unsubscribe.&rdquo;
           </li>
           <li>
             <strong>Confirmations</strong> — A single reply confirming that a
             shift the user claimed has been assigned to them, or letting them
             know the shift has already been filled.
+          </li>
+          <li>
+            <strong>Schedule-change notices</strong> — A single SMS if a shift
+            the user was confirmed for is cancelled by the requesting store,
+            or if a manager removes the user from a shift, so the user knows
+            not to come in.
+          </li>
+          <li>
+            <strong>Sign-in codes</strong> — A one-time 6-digit code, sent
+            only when the user requests it on the worker sign-in page, used
+            to view their picked-up shifts and manage their weekly schedule.
           </li>
           <li>
             <strong>Opt-out / opt-in confirmations</strong> — A single reply
