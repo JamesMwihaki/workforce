@@ -18,9 +18,12 @@ export default async function DashboardLayout({
             ShiftAlert
           </Link>
           <div className="flex items-center gap-4 text-sm">
-            <span className="hidden text-gray-600 sm:inline">
+            <Link
+              href="/dashboard/account"
+              className="hidden text-gray-600 hover:text-gray-900 hover:underline sm:inline"
+            >
               {manager.store?.name ?? '—'} · {manager.name}
-            </span>
+            </Link>
             {manager.is_admin && (
               <Link
                 href="/admin"
@@ -29,6 +32,12 @@ export default async function DashboardLayout({
                 Admin
               </Link>
             )}
+            <Link
+              href="/dashboard/account"
+              className="text-gray-600 hover:text-gray-900 hover:underline sm:hidden"
+            >
+              Account
+            </Link>
             <form action="/logout" method="post">
               <button
                 type="submit"
