@@ -13,14 +13,19 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="border-b border-gray-200 bg-white">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3 sm:px-6">
-          <Link href="/dashboard" className="font-semibold tracking-tight">
+        <div className="mx-auto flex max-w-3xl items-center gap-4 px-4 py-3 sm:px-6">
+          <Link
+            href="/dashboard"
+            className="shrink-0 font-semibold tracking-tight"
+          >
             ShiftAlert
           </Link>
-          <div className="flex items-center gap-4 text-sm">
-            <span className="hidden text-gray-600 sm:inline">
-              {manager.store?.name ?? '—'} · {manager.name}
-            </span>
+
+          <span className="hidden min-w-0 flex-1 truncate text-sm text-gray-600 sm:block">
+            {manager.store?.name ?? '—'} · {manager.name}
+          </span>
+
+          <div className="ml-auto flex shrink-0 items-center gap-4 text-sm sm:ml-0">
             {manager.is_admin && (
               <Link
                 href="/admin"
