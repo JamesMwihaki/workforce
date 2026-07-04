@@ -35,6 +35,13 @@ export default async function Register() {
         <RegisterForm stores={stores ?? []} />
       )}
 
+      <p className="mt-4 text-center text-sm text-gray-600">
+        Already registered?{' '}
+        <Link href="/worker/login" className="font-medium text-gray-900 underline">
+          Sign in to see your shifts &amp; schedule
+        </Link>
+      </p>
+
       <footer className="mt-10 border-t border-gray-200 pt-4 text-center text-xs text-gray-600">
         <Link href="/sms-policy" className="underline">
           SMS Policy &amp; Consent
