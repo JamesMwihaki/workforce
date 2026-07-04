@@ -1,6 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { getTwilioFromNumber } from '@/lib/twilio';
 import { sendSms } from '@/lib/sms';
+import { eligibleSameStoreWorkers } from '@/lib/schedule';
 import { ROLE_LABELS, type Role } from '@/lib/roles';
 import { formatDate, formatTime } from '@/lib/format';
 
@@ -16,13 +17,15 @@ type BroadcastInput = {
 };
 
 // Sends an SMS to every active worker at neighbouring stores who covers the
-// requested role. The short shift code is embedded in the body (and in a
-// tap-to-reply sms: link) so the Twilio webhook can match a "YES 42" reply
-// back to the right shift.
+// requested role, plus workers at the requesting store itself when their
+// regular schedule says they're off that day and the pickup keeps their
+// Mon–Sun week at or under 40 hours. The short shift code is embedded in the
+// body (and in a tap-to-reply sms: link) so the Twilio webhook can match a
+// "YES 42" reply back to the right shift.
 export async function broadcastShift(input: BroadcastInput): Promise<void> {
   const supabase = createServiceClient();
 
-  const { data: workers, error } = await supabase
+  const { data: neighbours, error } = await supabase
     .from('workers')
     .select('id, phone, roles, store_id, is_active')
     .neq('store_id', input.requestingStoreId)
@@ -34,7 +37,17 @@ export async function broadcastShift(input: BroadcastInput): Promise<void> {
     return;
   }
 
-  if (!workers || workers.length === 0) return;
+  const sameStore = await eligibleSameStoreWorkers({
+    requestingStoreId: input.requestingStoreId,
+    role:              input.role,
+    shiftId:           input.shiftId,
+    shiftDate:         input.shiftDate,
+    startTime:         input.startTime,
+    endTime:           input.endTime,
+  });
+
+  const workers = [...(neighbours ?? []), ...sameStore];
+  if (workers.length === 0) return;
 
   // Skip workers already confirmed for a shift on this date — they're booked
   // and shouldn't be asked to cover another shift the same day.

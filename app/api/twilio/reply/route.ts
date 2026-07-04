@@ -3,6 +3,7 @@ import twilio from 'twilio';
 import { createServiceClient } from '@/lib/supabase/server';
 import type { Role } from '@/lib/roles';
 import { formatDate, formatTime } from '@/lib/format';
+import { checkSameStorePickup } from '@/lib/schedule';
 
 // Twilio posts inbound SMS as application/x-www-form-urlencoded.
 // We respond with TwiML so the carrier sends the auto-reply we craft below.
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
   // 3. Resolve worker by phone.
   const { data: worker } = await supabase
     .from('workers')
-    .select('id, name, store_id, roles, is_active')
+    .select('id, name, store_id, roles, is_active, schedule_updated_at')
     .eq('phone', fromPhone)
     .maybeSingle<{
       id:        string;
@@ -48,6 +49,7 @@ export async function POST(req: Request) {
       store_id:  string;
       roles:     Role[];
       is_active: boolean;
+      schedule_updated_at: string | null;
     }>();
 
   // 4. STOP: opt out regardless of whether we recognise the worker.
@@ -137,6 +139,31 @@ export async function POST(req: Request) {
     );
   }
 
+  // Same-store pickups have extra rules: the worker must have a submitted
+  // schedule, be off that day, and stay at or under 40 hours for the week.
+  if (shiftForMsg.requesting_store_id === worker.store_id) {
+    const check = await checkSameStorePickup(worker.id, worker.schedule_updated_at, shiftForMsg);
+    if (!check.eligible) {
+      switch (check.reason) {
+        case 'no_schedule':
+          return twiml(
+            'To pick up shifts at your own store, first enter your regular ' +
+              `schedule at ${process.env.NEXT_PUBLIC_APP_URL ?? 'the ShiftAlert site'}/worker`,
+          );
+        case 'scheduled_that_day':
+          return twiml(
+            `You're already scheduled to work on ${formatDate(shiftForMsg.shift_date)}, ` +
+              "so we can't book you for this one.",
+          );
+        case 'over_40':
+          return twiml(
+            'Picking up this shift would put you over 40 hours for the week, ' +
+              "so we can't book you for it. Thanks for offering!",
+          );
+      }
+    }
+  }
+
   const { data: claimResult, error: claimErr } = await supabase.rpc('claim_shift', {
     p_shift_id:  shiftId,
     p_worker_id: worker.id,
@@ -189,8 +216,9 @@ async function resolveShiftId(
   worker: { id: string; store_id: string; roles: Role[] },
 ): Promise<string | null> {
   // Preferred: the short shift code from the alert. Scope the lookup to
-  // shifts this worker could have been alerted about (matching role, not
-  // their own store) so a guessed code can't book them somewhere invalid.
+  // shifts this worker could have been alerted about (matching role; own-store
+  // shifts are allowed and get the schedule/40-hour checks in the caller) so a
+  // guessed code can't book them somewhere invalid.
   // No status filter — claim_shift decides between confirm/waitlist/closed.
   const codeMatch = bodyText.match(CODE_RE);
   if (codeMatch) {
@@ -198,7 +226,6 @@ async function resolveShiftId(
       .from('shift_requests')
       .select('id')
       .eq('code', Number(codeMatch[1]))
-      .neq('requesting_store_id', worker.store_id)
       .in('role', worker.roles)
       .maybeSingle();
     // A code was given; if it doesn't resolve, don't fall through and guess

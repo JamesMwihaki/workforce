@@ -18,6 +18,12 @@ export default function Home() {
           I&apos;m a worker — register
         </Link>
         <Link
+          href="/worker/login"
+          className="rounded-md border border-gray-400 bg-white px-4 py-3 text-center text-sm font-medium text-gray-900 hover:bg-gray-50"
+        >
+          I&apos;m a worker — my shifts &amp; schedule
+        </Link>
+        <Link
           href="/manager-login"
           className="rounded-md border border-gray-400 bg-white px-4 py-3 text-center text-sm font-medium text-gray-900 hover:bg-gray-50"
         >
