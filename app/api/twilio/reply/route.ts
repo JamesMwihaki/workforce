@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import twilio from 'twilio';
 import { createServiceClient } from '@/lib/supabase/server';
-import type { Role } from '@/lib/roles';
+import { ROLE_LABELS, type Role } from '@/lib/roles';
 import { formatDate, formatTime } from '@/lib/format';
 import { checkSameStorePickup } from '@/lib/schedule';
+import { decideIncentive } from '@/lib/incentive-decision';
 
 // Twilio posts inbound SMS as application/x-www-form-urlencoded.
 // We respond with TwiML so the carrier sends the auto-reply we craft below.
@@ -79,6 +80,21 @@ export async function POST(req: Request) {
         'Chipotle crew. Reply YES to claim a shift, STOP to unsubscribe. ' +
         'Msg&data rates may apply. Questions? Contact your manager.',
     );
+  }
+
+  // 5b. APPROVE / DENY: an admin deciding an incentive request from the
+  //     approval text. Checked before the worker gates because it's an admin
+  //     action, not a shift claim (the admin's number is verified against a
+  //     manager row with is_admin, not just any worker).
+  const decisionMatch = bodyText.match(DECISION_RE);
+  if (decisionMatch) {
+    const response = await handleIncentiveDecision(
+      supabase,
+      fromPhone,
+      decisionMatch[1].toLowerCase() === 'approve' ? 'approve' : 'decline',
+      Number(decisionMatch[2]),
+    );
+    return twiml(response);
   }
 
   if (!worker) {
@@ -209,6 +225,63 @@ export async function POST(req: Request) {
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 // "YES 42", "yes #42", "YES42" — the short code broadcast in every alert.
 const CODE_RE = /\byes\s*#?\s*(\d{1,9})\b/i;
+// "APPROVE 42" / "DENY 42" — admin decision on an incentive request.
+const DECISION_RE = /\b(approve|deny)\s*#?\s*(\d{1,9})\b/i;
+
+// Verify the sender is an admin (via their linked worker's phone), resolve the
+// code to a shift, and run the shared decide-and-broadcast path.
+async function handleIncentiveDecision(
+  supabase: ReturnType<typeof createServiceClient>,
+  fromPhone: string,
+  action: 'approve' | 'decline',
+  code: number,
+): Promise<string> {
+  const { data: admins } = await supabase
+    .from('managers')
+    .select('id, worker:workers!inner(phone)')
+    .eq('is_admin', true)
+    .eq('worker.phone', fromPhone);
+
+  const admin = (admins ?? [])[0];
+  if (!admin) {
+    // Not an admin — same generic nudge a worker gets for any non-YES text.
+    return 'Reply YES to claim a shift, or STOP to unsubscribe.';
+  }
+
+  const { data: shift } = await supabase
+    .from('shift_requests')
+    .select('id')
+    .eq('code', code)
+    .maybeSingle();
+
+  if (!shift) {
+    return `We couldn't find a shift with number ${code}. Double-check the approval text, e.g. "APPROVE 12".`;
+  }
+
+  const result = await decideIncentive({ shiftId: shift.id, action, adminId: admin.id });
+
+  if (!result.ok) {
+    switch (result.reason) {
+      case 'already_decided':
+        return `Shift ${code} has already been decided — nothing more to do.`;
+      case 'not_open':
+        return `Shift ${code} is no longer open, so there's nothing to approve.`;
+      case 'date_passed':
+        return `Shift ${code}'s date has already passed, so it wasn't sent.`;
+      default:
+        return 'Something went wrong on our end. Please decide it at the admin page instead.';
+    }
+  }
+
+  const when =
+    `${formatDate(result.shift.shift_date)} ` +
+    `${formatTime(result.shift.start_time)}-${formatTime(result.shift.end_time)}`;
+
+  return action === 'approve'
+    ? `Approved — workers are being texted about the +$${result.shift.incentive_amount}/hr ` +
+        `${ROLE_LABELS[result.shift.role]} shift at ${result.shift.store_name} (${when}).`
+    : `Got it — shift ${code} was sent to workers at regular pay (no bonus).`;
+}
 
 async function resolveShiftId(
   supabase: ReturnType<typeof createServiceClient>,

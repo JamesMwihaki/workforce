@@ -133,7 +133,8 @@ export async function POST(req: Request) {
           `is offering +$${incentiveAmount}/hr for a ${ROLE_LABELS[shift.role as keyof typeof ROLE_LABELS]} on ` +
           `${formatDate(shift.shift_date)}, ${formatTime(shift.start_time)} – ${formatTime(shift.end_time)} ` +
           `(${shift.headcount_needed} worker${shift.headcount_needed === 1 ? '' : 's'}). ` +
-          `Review: ${appUrl}/admin/incentives`;
+          `Reply "APPROVE ${shift.code}" to send with the bonus, or "DENY ${shift.code}" ` +
+          `to send at regular pay. Or review: ${appUrl}/admin/incentives`;
 
         await sendSms(
           shift.id,
