@@ -39,6 +39,7 @@ export default function NewShiftForm() {
   const [headcount, setHeadcount] = useState(1);
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
+  const [incentive, setIncentive] = useState(0);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -61,6 +62,7 @@ export default function NewShiftForm() {
           start_time:       startTime,
           end_time:         endTime,
           headcount_needed: headcount,
+          incentive_amount: incentive,
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -178,6 +180,34 @@ export default function NewShiftForm() {
         </div>
       </Field>
 
+      <Field label="Extra pay" hint="Covered by the owner">
+        <div className="grid grid-cols-4 gap-2">
+          {[0, 1, 2, 3].map((amt) => {
+            const selected = incentive === amt;
+            return (
+              <button
+                key={amt}
+                type="button"
+                onClick={() => setIncentive(amt)}
+                className={`rounded-md border px-3 py-2.5 text-sm font-medium transition ${
+                  selected
+                    ? 'border-black bg-black text-white'
+                    : 'border-gray-300 bg-white text-gray-900 hover:border-gray-500'
+                }`}
+              >
+                {amt === 0 ? 'None' : `+$${amt}/hr`}
+              </button>
+            );
+          })}
+        </div>
+        {incentive > 0 && (
+          <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            Extra pay needs the owner&apos;s approval — workers won&apos;t be texted
+            until it&apos;s approved.
+          </p>
+        )}
+      </Field>
+
       {error && (
         <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
       )}
@@ -187,7 +217,11 @@ export default function NewShiftForm() {
         disabled={submitting || !isValidEnd(startTime, endTime)}
         className="w-full rounded-md bg-black px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
       >
-        {submitting ? 'Sending…' : 'Send to neighbouring stores'}
+        {submitting
+          ? 'Sending…'
+          : incentive > 0
+            ? 'Submit for approval'
+            : 'Send to neighbouring stores'}
       </button>
     </form>
   );

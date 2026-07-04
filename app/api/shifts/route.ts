@@ -10,6 +10,9 @@ const Body = z.object({
   start_time:       z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
   end_time:         z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
   headcount_needed: z.number().int().min(1).max(50),
+  // Extra $/hr on top of regular pay, covered by the owner. Needs admin
+  // approval before the shift is broadcast.
+  incentive_amount: z.number().min(0).max(20).optional().default(0),
 });
 
 export async function POST(req: Request) {
@@ -22,7 +25,7 @@ export async function POST(req: Request) {
 
   const { data: manager, error: mgrErr } = await auth
     .from('managers')
-    .select('id, store_id, store:stores(name)')
+    .select('id, store_id, is_admin, store:stores(name)')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -71,6 +74,12 @@ export async function POST(req: Request) {
     );
   }
 
+  // Incentivised shifts wait for admin approval before any SMS goes out —
+  // unless an admin is creating the shift, which approves it implicitly.
+  const incentiveAmount = parsed.data.incentive_amount;
+  const incentiveStatus =
+    incentiveAmount > 0 ? (manager.is_admin ? 'approved' : 'pending') : 'none';
+
   // 3. Insert via service role so we keep the workers/shift_claims write surface
   //    behind a single trusted entry point.
   const svc = createServiceClient();
@@ -84,12 +93,22 @@ export async function POST(req: Request) {
       start_time:          parsed.data.start_time,
       end_time:            parsed.data.end_time,
       headcount_needed:    parsed.data.headcount_needed,
+      incentive_amount:    incentiveAmount,
+      incentive_status:    incentiveStatus,
+      ...(incentiveStatus === 'approved'
+        ? { incentive_decided_by: manager.id, incentive_decided_at: new Date().toISOString() }
+        : {}),
     })
     .select('id, code, role, shift_date, start_time, end_time, headcount_needed, requesting_store_id')
     .single();
 
   if (insErr || !shift) {
     return NextResponse.json({ error: 'Could not create the request.' }, { status: 500 });
+  }
+
+  // Pending incentive: stop here — the admin's approval triggers the broadcast.
+  if (incentiveStatus === 'pending') {
+    return NextResponse.json({ id: shift.id, pending_approval: true });
   }
 
   // 4. Broadcast before responding. This MUST be awaited: on Vercel the
@@ -111,6 +130,7 @@ export async function POST(req: Request) {
       startTime:        shift.start_time,
       endTime:          shift.end_time,
       requestingStoreId: shift.requesting_store_id,
+      incentiveAmount,
     });
   } catch (e) {
     console.error('[broadcastShift]', e);

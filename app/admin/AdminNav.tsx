@@ -4,10 +4,11 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const TABS = [
-  { href: '/admin',          label: 'Overview' },
-  { href: '/admin/managers', label: 'Managers' },
-  { href: '/admin/stores',   label: 'Stores' },
-  { href: '/admin/workers',  label: 'Workers' },
+  { href: '/admin',            label: 'Overview' },
+  { href: '/admin/incentives', label: 'Incentives' },
+  { href: '/admin/managers',   label: 'Managers' },
+  { href: '/admin/stores',     label: 'Stores' },
+  { href: '/admin/workers',    label: 'Workers' },
 ] as const;
 
 export default function AdminNav() {

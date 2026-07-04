@@ -20,6 +20,8 @@ type Shift = {
   headcount_needed:    number;
   headcount_confirmed: number;
   status:              'open' | 'filled' | 'cancelled';
+  incentive_amount:    number;
+  incentive_status:    'none' | 'pending' | 'approved' | 'declined';
 };
 
 export default async function RequestDetail({
@@ -35,7 +37,7 @@ export default async function RequestDetail({
   const { data: shift } = await supabase
     .from('shift_requests')
     .select(
-      'id, code, role, shift_date, start_time, end_time, headcount_needed, headcount_confirmed, status',
+      'id, code, role, shift_date, start_time, end_time, headcount_needed, headcount_confirmed, status, incentive_amount, incentive_status',
     )
     .eq('id', params.id)
     .maybeSingle<Shift>();
@@ -53,6 +55,19 @@ export default async function RequestDetail({
         ← All requests
       </Link>
 
+      {shift.incentive_status === 'pending' && (
+        <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Waiting for the owner to approve the +${shift.incentive_amount}/hr extra
+          pay — workers haven&apos;t been texted yet.
+        </p>
+      )}
+      {shift.incentive_status === 'declined' && (
+        <p className="rounded-md bg-gray-100 px-3 py-2 text-sm text-gray-700">
+          The +${shift.incentive_amount}/hr extra pay wasn&apos;t approved, so this
+          shift was sent at regular pay.
+        </p>
+      )}
+
       <div className="rounded-lg border border-gray-200 bg-white p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -65,6 +80,11 @@ export default async function RequestDetail({
             <p className="mt-1 text-sm text-gray-600">
               {formatDate(shift.shift_date)} ·{' '}
               {formatTime(shift.start_time)} – {formatTime(shift.end_time)}
+              {shift.incentive_amount > 0 && shift.incentive_status === 'approved' && (
+                <span className="ml-1.5 font-medium text-amber-700">
+                  +${shift.incentive_amount}/hr
+                </span>
+              )}
             </p>
           </div>
           <RequestLive

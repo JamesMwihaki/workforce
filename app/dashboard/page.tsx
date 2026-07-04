@@ -14,6 +14,8 @@ type ShiftRow = {
   headcount_confirmed: number;
   status:              'open' | 'filled' | 'cancelled';
   created_at:          string;
+  incentive_amount:    number;
+  incentive_status:    'none' | 'pending' | 'approved' | 'declined';
 };
 
 export const dynamic = 'force-dynamic';
@@ -31,7 +33,7 @@ export default async function DashboardPage() {
   const { data: shifts, error } = await supabase
     .from('shift_requests')
     .select(
-      'id, role, shift_date, start_time, end_time, headcount_needed, headcount_confirmed, status, created_at',
+      'id, role, shift_date, start_time, end_time, headcount_needed, headcount_confirmed, status, created_at, incentive_amount, incentive_status',
     )
     .eq('requesting_store_id', manager.store_id)
     .neq('status', 'cancelled')

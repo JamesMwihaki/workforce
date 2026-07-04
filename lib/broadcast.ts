@@ -4,6 +4,7 @@ import { sendSms } from '@/lib/sms';
 import { eligibleSameStoreWorkers } from '@/lib/schedule';
 import { ROLE_LABELS, type Role } from '@/lib/roles';
 import { formatDate, formatTime } from '@/lib/format';
+import { formatMoney } from '@/lib/incentives';
 
 type BroadcastInput = {
   shiftId:           string;
@@ -14,6 +15,8 @@ type BroadcastInput = {
   startTime:         string;
   endTime:           string;
   requestingStoreId: string;
+  /** Extra pay per hour on top of regular pay (0 = no bonus). */
+  incentiveAmount?:  number;
 };
 
 // Sends an SMS to every active worker at neighbouring stores who covers the
@@ -72,9 +75,15 @@ export async function broadcastShift(input: BroadcastInput): Promise<void> {
 
   // The sms: link opens the worker's messaging app with the reply pre-typed —
   // one tap plus send, no typing. The ?&body= form works on both iOS and Android.
+  const bonus =
+    input.incentiveAmount && input.incentiveAmount > 0
+      ? `Pays +${formatMoney(input.incentiveAmount)}/hr on top of regular pay. `
+      : '';
+
   const message =
     `[ShiftAlert] ${input.storeName} needs a ${ROLE_LABELS[input.role]} on ` +
     `${formatDate(input.shiftDate)} from ${formatTime(input.startTime)} to ${formatTime(input.endTime)}. ` +
+    bonus +
     `Reply "YES ${input.shiftCode}" to claim, or tap: ` +
     `sms:${from}?&body=YES%20${input.shiftCode} ` +
     `Reply HELP for help, STOP to unsubscribe.`;

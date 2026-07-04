@@ -15,6 +15,8 @@ type ShiftRow = {
   headcount_confirmed: number;
   status:              'open' | 'filled' | 'cancelled';
   created_at:          string;
+  incentive_amount:    number;
+  incentive_status:    'none' | 'pending' | 'approved' | 'declined';
 };
 
 type Filter = 'all' | 'waiting' | 'filled' | 'today';
@@ -81,10 +83,21 @@ export default function ShiftList({
                     </p>
                     <p className="text-sm text-gray-600">
                       {formatTime(s.start_time)} – {formatTime(s.end_time)}
+                      {s.incentive_amount > 0 && s.incentive_status !== 'declined' && (
+                        <span className="ml-1.5 font-medium text-amber-700">
+                          +${s.incentive_amount}/hr
+                        </span>
+                      )}
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    <StatusBadge status={s.status} />
+                    {s.incentive_status === 'pending' ? (
+                      <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
+                        needs approval
+                      </span>
+                    ) : (
+                      <StatusBadge status={s.status} />
+                    )}
                     <span className="text-xs text-gray-600">
                       {s.headcount_confirmed} / {s.headcount_needed} confirmed
                     </span>
