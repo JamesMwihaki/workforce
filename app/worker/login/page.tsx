@@ -11,6 +11,9 @@ export default async function WorkerLoginPage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-8 px-6 py-12">
+      <Link href="/" className="text-sm text-gray-600 hover:underline">
+        ← Back
+      </Link>
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Worker sign-in</h1>
         <p className="text-sm text-gray-700">
